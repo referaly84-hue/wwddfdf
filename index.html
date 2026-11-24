@@ -11101,7 +11101,8 @@ function renderFatigueBadge(fat, available, unavailReason, opts = {}) {
 
 function lineupForm(box, f, c, withT, app) {
   const isAdmin = S.me?.role === 'admin';
-  const L = f.lineup || c.tactic || f.auto;
+  const L = f.lineup || { ...(f.auto || c.tactic || {}), speech: '', training: '', plannedSubs: [] };
+  const presets = Array.isArray(c.tacticPresets) ? c.tacticPresets : [];
   const order = { ВР: 0, ЛЗ: 1, ЦЗ: 2, ПЗ: 3, ЛП: 4, ОП: 5, ЦП: 6, АП: 7, ПП: 8, ЛВ: 9, ЦФ: 10, ПВ: 11 };
   const sq = [...c.squad].sort((a, b) => (order[a.pos] ?? 6) - (order[b.pos] ?? 6));
   const isRpl = c.team.comp === 'rpl' || f.comp === 'rpl';
@@ -11220,6 +11221,14 @@ function lineupForm(box, f, c, withT, app) {
   <div id="slots_editor" style="margin:14px 0;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px"></div>
   <div id="subs_editor" style="margin:14px 0;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px"></div>
   <div id="roles_editor" style="margin:14px 0;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px"></div>
+  ${presets.length ? `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;margin-bottom:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--line)">
+    <span class="small" style="font-weight:600">📋 Вернуться к прошлой тактике:</span>
+    <select class="tactic-preset-sel" style="flex:1;min-width:200px">
+      <option value="">— Выберите сохранённую тактику —</option>
+      ${presets.map((pr, idx) => `<option value="${idx}">${e(pr.title || pr.label || ('Тактика #' + (idx + 1)))}</option>`).join('')}
+    </select>
+    <button type="button" class="btn sm alt apply-tactic-preset-btn">Подставить</button>
+  </div>` : ''}
   <div class="row" style="justify-content:space-between;align-items:flex-end;gap:8px;margin-top:10px;margin-bottom:4px"><label style="margin:0">Тактика — всё, что тренер говорит игрокам перед матчем</label><button type="button" class="btn sm alt clear-speech-btn">Очистить</button></div><textarea class="sp1" placeholder="Пишите как есть: установка, настрой, речь. Молчание — тоже речь.">${e(L.speech || '')}</textarea>
   <div class="row" style="justify-content:space-between;align-items:flex-end;gap:8px;margin-top:10px;margin-bottom:4px"><label style="margin:0">Тренировочный план перед матчем (произвольный текст)</label><button type="button" class="btn sm alt clear-training-btn">Очистить</button></div><textarea class="tr1" placeholder="Например: пн — отдых, вт — прессинг 2 часа, ср — стандарты, чт — разминка, пт — отдых">${e(L.training || '')}</textarea>
   <div id="tactical_preview_widget" style="margin:14px 0;padding:12px 14px;background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px;font-size:12.5px;line-height:1.45">
@@ -11665,7 +11674,6 @@ function lineupForm(box, f, c, withT, app) {
       if (!spEl.value.length) return;
       clearSpeechBtn.disabled = true;
       spEl.value = '';
-      if (c.tactic) c.tactic.speech = '';
       if (f.lineup) f.lineup.speech = '';
       schedulePreview();
       const r = await act(() => api('/club/tactics/clear-speech', withT({ fid: f.id })), 'Тактика очищена');
@@ -11688,11 +11696,35 @@ function lineupForm(box, f, c, withT, app) {
       if (!trEl.value.length) return;
       clearTrainingBtn.disabled = true;
       trEl.value = '';
-      if (c.tactic) c.tactic.training = '';
       if (f.lineup) f.lineup.training = '';
       schedulePreview();
       const r = await act(() => api('/club/tactics/clear-training', withT({ fid: f.id })), 'Тренировочный план очищен');
       if (!r) syncClearTrainingBtn();
+    };
+  }
+  const presetSel = box.querySelector('.tactic-preset-sel');
+  const applyPresetBtn = box.querySelector('.apply-tactic-preset-btn');
+  if (presetSel && applyPresetBtn) {
+    applyPresetBtn.onclick = () => {
+      const idx = presetSel.value === '' ? -1 : Number(presetSel.value);
+      const pr = presets[idx];
+      if (!pr) return toast('Выберите тактику из списка', 1);
+      if (spEl) spEl.value = pr.speech || '';
+      if (trEl) trEl.value = pr.training || '';
+      const fmEl = box.querySelector('.fm');
+      if (fmEl && pr.formation && isCompleteFormation(pr.formation)) {
+        const nextFm = String(pr.formation).trim();
+        if (nextFm !== lastValidFm) {
+          fmEl.value = nextFm;
+          lastValidFm = nextFm;
+          currentSlots = [];
+          renderSlotsEditor();
+        }
+      }
+      syncClearSpeechBtn();
+      syncClearTrainingBtn();
+      schedulePreview();
+      toast('Тактика подставлена — нажмите «Сохранить» для этого матча');
     };
   }
   box.querySelector('.fm')?.addEventListener('input', schedulePreview);
@@ -11725,6 +11757,7 @@ function lineupForm(box, f, c, withT, app) {
 
 function intraLineupForm(box, f, c, withT, app) {
   const isAdmin = S.me?.role === 'admin';
+  const presets = Array.isArray(c.tacticPresets) ? c.tacticPresets : [];
   const hLbl = f.homeLabel || 'Основа';
   const aLbl = f.awayLabel || 'Запас';
   const order = { ВР: 0, ЛЗ: 1, ЦЗ: 2, ПЗ: 3, ЛП: 4, ОП: 5, ЦП: 6, АП: 7, ПП: 8, ЛВ: 9, ЦФ: 10, ПВ: 11 };
@@ -11850,6 +11883,14 @@ function intraLineupForm(box, f, c, withT, app) {
         <div id="intra_slots_editor" style="margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--soft);border:1px solid var(--border)"></div>
         <div id="intra_subs_editor" style="margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--soft);border:1px solid var(--border)"></div>
         <div id="intra_roles_editor" style="margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--soft);border:1px solid var(--border)"></div>
+        ${presets.length ? `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border-radius:8px;background:var(--soft);border:1px solid var(--border)">
+          <span class="small" style="font-weight:600">📋 Подставить прошлую тактику:</span>
+          <select id="intra_preset_sel" style="flex:1;min-width:190px">
+            <option value="">— Выберите сохранённую тактику —</option>
+            ${presets.map((pr, idx) => `<option value="${idx}">${e(pr.title || pr.label || ('Тактика #' + (idx + 1)))}</option>`).join('')}
+          </select>
+          <button type="button" class="btn sm alt" id="intra_apply_preset">Подставить</button>
+        </div>` : ''}
         <div class="row sp" style="align-items:center;margin-top:10px"><label class="small" style="margin:0;font-weight:600">Предматчевая установка команде</label><button type="button" class="btn sm alt" id="intra_clear_sp">Очистить</button></div>
         <textarea id="intra_sp" rows="2" maxlength="20000" style="width:100%;margin-top:4px" placeholder="Короткие тактические указания для выбранной половины команды"></textarea>
         <div class="row sp" style="align-items:center;margin-top:8px"><label class="small" style="margin:0;font-weight:600">План тренировок / акценты спарринга</label><button type="button" class="btn sm alt" id="intra_clear_tr">Очистить</button></div>
@@ -12121,6 +12162,25 @@ function intraLineupForm(box, f, c, withT, app) {
   });
   box.querySelector('#intra_sp')?.addEventListener('input', ev => { sideState[activeSide].speech = ev.target.value; });
   box.querySelector('#intra_tr')?.addEventListener('input', ev => { sideState[activeSide].training = ev.target.value; });
+  box.querySelector('#intra_apply_preset')?.addEventListener('click', () => {
+    const sel = box.querySelector('#intra_preset_sel');
+    const idx = sel && sel.value !== '' ? Number(sel.value) : -1;
+    const pr = presets[idx];
+    if (!pr) return toast('Выберите тактику из списка', 1);
+    const stSide = sideState[activeSide];
+    stSide.speech = pr.speech || '';
+    stSide.training = pr.training || '';
+    if (pr.formation && isCompleteFormation(pr.formation)) {
+      const nextFm = String(pr.formation).trim();
+      if (nextFm !== stSide.lastValidFm) {
+        stSide.formation = nextFm;
+        stSide.lastValidFm = nextFm;
+        stSide.slots = [];
+      }
+    }
+    renderTacticsPane();
+    toast('Тактика подставлена для выбранной команды — сохраните составы');
+  });
   box.querySelector('#intra_clear_sp')?.addEventListener('click', () => {
     sideState[activeSide].speech = '';
     if (box.querySelector('#intra_sp')) box.querySelector('#intra_sp').value = '';
