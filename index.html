@@ -9200,8 +9200,9 @@ async function pgClub(app) {
           <h3 style="margin:0">⚽ Внутрикомандный спарринг (11 на 11 внутри клуба)</h3>
           <span class="tag" style="background:${intraReady ? '#dcfce7;color:#166534;border-color:#86efac' : '#fee2e2;color:#991b1b;border-color:#fca5a5'}">Игроков в клубе: ${ip.total} (готов к игре: ${ip.available}, ВР: ${ip.gkAvailable}/${ip.gkTotal})</span>
         </div>
-        <p class="muted small" style="margin:4px 0 10px">Организуйте тренировочную двусторонку внутри вашего клуба — например, <b>Основа против Запаса</b> (можно привлечь всех игроков заявки, незаявленных и дубль). Бесплатно, без рекламы и без согласования с другими клубами — назначается сразу на любую свободную игровую дату.</p>
+        <p class="muted small" style="margin:4px 0 10px">Организуйте тренировочную двусторонку внутри вашего клуба — например, <b>Основа против Запаса</b> (можно привлечь всех игроков заявки, незаявленных и дубль). Бесплатно, без рекламы и без согласования с другими клубами — проводится во время официальных пауз на сборные.</p>
         ${!intraReady ? `<div class="small" style="color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin-bottom:10px">⚠ Для спарринга 11 на 11 нужно минимум 22 игрока в структуре клуба (сейчас ${ip.total}).</div>` : ''}
+        ${fr.breaks?.length ? `
         <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
           <label class="small" style="flex:1;min-width:170px">Команда 1 (хозяева)<br><input id="intra_home_lbl" maxlength="28" value="Основа" placeholder="Основа" style="width:100%"></label>
           <label class="small" style="flex:1;min-width:170px">Команда 2 (гости)<br><input id="intra_away_lbl" maxlength="28" value="Запас" placeholder="Запас" style="width:100%"></label>
@@ -9213,10 +9214,10 @@ async function pgClub(app) {
         </div>
         <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
           <label class="small" style="flex:1;min-width:190px">Место проведения<br><select id="intra_venue" style="width:100%"><option value="home">На своей базе / стадионе</option><option value="neutral">Нейтральное поле (сборы)</option></select></label>
-          <label class="small" style="flex:1;min-width:140px">Игровая дата<br><input type="date" id="intra_date" style="width:100%"></label>
+          <label class="small" style="flex:2;min-width:200px">Официальная пауза на сборные<br><select id="intra_break" style="width:100%">${fr.breaks.map(b => `<option value="${e(b.start)}|${e(b.end)}">${e(b.name)} (${e(b.start)} — ${e(b.end)})</option>`).join('')}</select></label>
+          <label class="small" style="flex:1;min-width:140px">Игровая дата (внутри паузы)<br><input type="date" id="intra_date" style="width:100%"></label>
           <label class="small" style="width:110px">Игровое время<br><input type="time" id="intra_time" value="11:30" style="width:100%"></label>
         </div>
-        ${fr.breaks?.length ? `<div class="row" style="gap:4px;flex-wrap:wrap;margin-top:6px"><span class="muted small">Быстро выбрать паузу:</span>${fr.breaks.map(b => `<button type="button" class="btn sm alt" data-intra-bdate="${e(b.start)}">${e(b.name)} (${e(b.start)})</button>`).join('')}</div>` : ''}
         <div id="intra_neutral" class="row" style="gap:10px;margin-top:8px;display:none">
           <label class="small" style="flex:1">Стадион / база сборов<br><input id="intra_nst" maxlength="80" placeholder="Например: Тренировочное поле на сборах"></label>
           <label class="small" style="flex:1">Город<br><input id="intra_nct" maxlength="60" placeholder="Например: Анталья / Сочи"></label>
@@ -9233,7 +9234,7 @@ async function pgClub(app) {
           </div>
         </div>
         <label class="small" style="display:block;margin-top:8px">Заметка к спаррингу (необязательно)<br><textarea id="intra_cond" rows="2" maxlength="500" style="width:100%;max-width:560px" placeholder="Например: Двусторонка 11 на 11: проверка резерва и новых сочетаний"></textarea></label>
-        <button type="button" class="btn" id="intra_send" ${intraReady ? '' : 'disabled'} style="margin-top:8px">⚽ Назначить спарринг и перейти к выбору составов</button>
+        <button type="button" class="btn" id="intra_send" ${intraReady ? '' : 'disabled'} style="margin-top:8px">⚽ Назначить спарринг и перейти к выбору составов</button>` : '<div class="muted small">Ближайших пауз на сборные в календаре нет — назначить спарринг можно только во время паузы на сборные.</div>'}
       </div>`;
     cb.innerHTML = `
       ${intraPanel}
@@ -9436,8 +9437,22 @@ async function pgClub(app) {
       const mskHour = Number(new Date().toLocaleString('en-GB', { timeZone: 'Europe/Moscow', hour: '2-digit', hour12: false }));
       const tomorrowMskStr = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
       const defIntraRealDate = mskHour >= 18 ? tomorrowMskStr : todayMskStr;
-      const defGDate = (S.st?.gameDate && S.st.gameDate >= todayMskStr ? S.st.gameDate : '') || fr.breaks?.[0]?.start || todayMskStr;
-      if (iq('#intra_date')) iq('#intra_date').value = defGDate;
+      const syncIntraBreak = () => {
+        const brkEl = iq('#intra_break');
+        const dtEl = iq('#intra_date');
+        if (!brkEl || !dtEl || !brkEl.value) return;
+        const [a, z] = brkEl.value.split('|');
+        dtEl.min = a;
+        dtEl.max = z;
+        if (!dtEl.value || dtEl.value < a || dtEl.value > z) dtEl.value = a;
+      };
+      if (iq('#intra_break')) {
+        iq('#intra_break').onchange = syncIntraBreak;
+        syncIntraBreak();
+      }
+      if (iq('#intra_date')) {
+        iq('#intra_date').onchange = syncIntraBreak;
+      }
       if (iq('#intra_real_date')) { iq('#intra_real_date').value = defIntraRealDate; iq('#intra_real_date').min = todayMskStr; }
       if (iq('#intra_venue')) iq('#intra_venue').onchange = () => {
         if (iq('#intra_neutral')) iq('#intra_neutral').style.display = iq('#intra_venue').value === 'neutral' ? 'flex' : 'none';
@@ -9446,9 +9461,6 @@ async function pgClub(app) {
         const [h, a] = String(btn.dataset.intraPreset || '').split('|');
         if (iq('#intra_home_lbl') && h) iq('#intra_home_lbl').value = h;
         if (iq('#intra_away_lbl') && a) iq('#intra_away_lbl').value = a;
-      });
-      intraBox.querySelectorAll('[data-intra-bdate]').forEach(btn => btn.onclick = () => {
-        if (iq('#intra_date')) iq('#intra_date').value = btn.dataset.intraBdate;
       });
       intraBox.querySelectorAll('[data-intra-rt]').forEach(btn => btn.onclick = () => {
         if (iq('#intra_real_time')) iq('#intra_real_time').value = btn.dataset.intraRt;

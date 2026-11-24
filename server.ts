@@ -25896,7 +25896,7 @@ function tryFinalizeFriendly(r) {
   const realDate = r.realDate || r.date;
   const realTime = r.realTime || r.time || "19:00";
   if (realDate < todayMsk()) return reject("\u041D\u0430\u0441\u0442\u043E\u044F\u0449\u0430\u044F \u0434\u0430\u0442\u0430 \u043C\u0430\u0442\u0447\u0430 \u0443\u0436\u0435 \u043F\u0440\u043E\u0448\u043B\u0430");
-  if (!isIntra && !friendlyBreakFor(gameDate)) return reject("\u0418\u0433\u0440\u043E\u0432\u0430\u044F \u0434\u0430\u0442\u0430 \u043D\u0435 \u043F\u043E\u043F\u0430\u0434\u0430\u0435\u0442 \u0432 \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u0443\u044E \u043F\u0430\u0443\u0437\u0443 \u043D\u0430 \u0441\u0431\u043E\u0440\u043D\u044B\u0435");
+  if (!friendlyBreakFor(gameDate)) return reject("\u0418\u0433\u0440\u043E\u0432\u0430\u044F \u0434\u0430\u0442\u0430 \u043D\u0435 \u043F\u043E\u043F\u0430\u0434\u0430\u0435\u0442 \u0432 \u043E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u0443\u044E \u043F\u0430\u0443\u0437\u0443 \u043D\u0430 \u0441\u0431\u043E\u0440\u043D\u044B\u0435");
   const ntOfficial = r.nationalType && (ntCurrent(r.nationalType)?.matches || []).some((m) => (m.gameDate || m.date) === gameDate);
   const clash = friendlyConflict(A.id, gameDate) || (!isIntra ? friendlyConflict(B.id, gameDate) : null) || (ntOfficial ? "В этот день у сборной официальный матч" : null);
   if (r.nationalType && ntActiveIds(r.nationalType).length < 14) return reject("Сборная ещё не сформирована: администратор не вызвал достаточно игроков");
@@ -26068,6 +26068,11 @@ app.post("/api/club/friendly/intra/request", needClub, (req, res) => {
   if (venue === "neutral" && !neutralStadium && !neutralCity) return fail(res, "Для нейтрального поля укажите стадион или город");
   const gameDate = String(b.gameDate || b.date || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(gameDate)) return fail(res, "Укажите игровую дату спарринга");
+  const matchedBreak = friendlyBreakFor(gameDate);
+  if (!matchedBreak) {
+    const w = upcomingFriendlyBreaks().map((x) => `${x.start} — ${x.end} (${x.name})`).join("; ");
+    return fail(res, `Игровая дата должна попадать в официальную паузу на сборные${w ? ": " + w : ""}`);
+  }
   const clash = friendlyConflict(A.id, gameDate);
   if (clash) return fail(res, clash);
   let gameTime = String(b.gameTime || b.time || "11:30").trim();
