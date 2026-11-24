@@ -6224,7 +6224,8 @@ var COMPS = [
   { id: "media", name: "Winline \u041C\u0435\u0434\u0438\u0439\u043D\u0430\u044F \u0444\u0443\u0442\u0431\u043E\u043B\u044C\u043D\u0430\u044F \u043B\u0438\u0433\u0430 (7-\u0441\u0435\u0437\u043E\u043D)", type: "league", tier: 5, level: "\u041C\u0435\u0434\u0438\u0430\u043B\u0438\u0433\u0430 \xB7 12 \u043A\u043E\u043C\u0430\u043D\u0434", logo: "/logos/leagues/media.svg" },
   { id: "media_div2", name: "\u0412\u0442\u043E\u0440\u043E\u0439 \u0434\u0438\u0432\u0438\u0437\u0438\u043E\u043D (\u041C\u0435\u0434\u0438\u0430\u043B\u0438\u0433\u0430)", type: "league", tier: 6, level: "8 \u043A\u043E\u043C\u0430\u043D\u0434 \xB7 \u041F\u043B\u0435\u0439-\u043E\u0444\u0444 \u0442\u043E\u043F-4", logo: "/logos/leagues/media.svg" },
   { id: "media_cup", name: "Winline \u041A\u0443\u0431\u043E\u043A \u041B\u0438\u0433\u0438 (2026)", type: "cup", tier: 5, level: "20 \u043A\u043E\u043C\u0430\u043D\u0434 \xB7 4 \u0433\u0440\u0443\u043F\u043F\u044B \u043F\u043E 5 \u043A\u043E\u043C\u0430\u043D\u0434", logo: "/logos/leagues/media.svg" },
-  { id: "friendly_match", name: "\u0422\u043E\u0432\u0430\u0440\u0438\u0449\u0435\u0441\u043A\u0438\u0435 \u043C\u0430\u0442\u0447\u0438", type: "friendly", level: "\u0422\u043E\u0432\u0430\u0440\u0438\u0449\u0435\u0441\u043A\u0438\u0435 \u043C\u0430\u0442\u0447\u0438 \u0432 \u043F\u0430\u0443\u0437\u044B \u043D\u0430 \u0441\u0431\u043E\u0440\u043D\u044B\u0435", logo: "/logos/leagues/cup.svg" }
+  { id: "friendly_match", name: "\u0422\u043E\u0432\u0430\u0440\u0438\u0449\u0435\u0441\u043A\u0438\u0435 \u043C\u0430\u0442\u0447\u0438", type: "friendly", level: "\u0422\u043E\u0432\u0430\u0440\u0438\u0449\u0435\u0441\u043A\u0438\u0435 \u043C\u0430\u0442\u0447\u0438 \u0432 \u043F\u0430\u0443\u0437\u044B \u043D\u0430 \u0441\u0431\u043E\u0440\u043D\u044B\u0435", logo: "/logos/leagues/cup.svg" },
+  { id: "europe", name: "\u0415\u0432\u0440\u043E\u043F\u0430 (\u0437\u0430\u0440\u0443\u0431\u0435\u0436\u043D\u044B\u0435 \u043A\u043B\u0443\u0431\u044B)", type: "abroad", tier: 99, level: "\u0415\u0432\u0440\u043E\u043F\u0435\u0439\u0441\u043A\u0438\u0435 \u0438 \u0437\u0430\u0440\u0443\u0431\u0435\u0436\u043D\u044B\u0435 \u043A\u043B\u0443\u0431\u044B", logo: "/logos/leagues/cup.svg" }
 ];
 var FRIENDLY_COMP = "friendly_match";
 var FRIENDLY_PAY_OPPONENT = true;
@@ -7825,15 +7826,16 @@ function getTransferWindowState() {
     reason: `Трансферное окно закрыто (тур ${closedAt}), и льготный период в ${graceRounds} тура уже прошёл (текущий тур: ${currentRound}). Редактирование откроется в следующее трансферное окно.`
   };
 }
-function tryAutoRegisterPlayer(tid, p) {
+function tryAutoRegisterPlayer(tid, p, force = false) {
   if (!tid || !p) return false;
+  const tm = team(tid);
+  const isEurope = tm?.comp === "europe";
   const tw = getTransferWindowState();
-  if (!tw.canEdit) return false;
-  const squadMax = Math.min(28, db.settings.squadMax || 28);
+  if (!tw.canEdit && !force && !isEurope) return false;
+  const squadMax = isEurope ? 60 : Math.min(28, db.settings.squadMax || 28);
   const cur = squadOf(tid);
   if (cur.some((x) => x.id === p.id)) return true;
   if (cur.length >= squadMax) return false;
-  const tm = team(tid);
   if (tm?.comp === "rpl" && isLegionnaire(p)) {
     const limit = getRplLegionLimit(S());
     if (cur.filter(isLegionnaire).length >= limit.inSquad) return false;
@@ -10325,15 +10327,18 @@ var llmJSON = async (s, u, o) => parseJSON(await llm(s, u, o));
 var CARD_SYS = `\u0422\u044B \u2014 \u0444\u0443\u0442\u0431\u043E\u043B\u044C\u043D\u044B\u0439 \u0441\u043A\u0430\u0443\u0442-\u0430\u043D\u0430\u043B\u0438\u0442\u0438\u043A \u0434\u043B\u044F \u0441\u0438\u043C\u0443\u043B\u044F\u0442\u043E\u0440\u0430. \u041F\u043E \u0438\u043C\u0435\u043D\u0438 \u0438\u0433\u0440\u043E\u043A\u0430 \u0432\u0435\u0440\u043D\u0438 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0443 \u0432 JSON. \u0418\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0439 \u0442\u043E\u043B\u044C\u043A\u043E \u0442\u043E, \u0447\u0442\u043E \u0437\u043D\u0430\u0435\u0448\u044C \u0434\u043E\u0441\u0442\u043E\u0432\u0435\u0440\u043D\u043E; \u0435\u0441\u043B\u0438 \u0438\u0433\u0440\u043E\u043A\u0430 \u043D\u0435 \u0437\u043D\u0430\u0435\u0448\u044C \u2014 \u0432\u0435\u0440\u043D\u0438 {"found":false}. \u041D\u0435 \u0432\u044B\u0434\u0443\u043C\u044B\u0432\u0430\u0439. \u041D\u0435 \u043F\u0438\u0448\u0438 \u043E \u043B\u0438\u0447\u043D\u043E\u0439 \u0436\u0438\u0437\u043D\u0438, \u0437\u0434\u043E\u0440\u043E\u0432\u044C\u0435, \u0441\u043A\u0430\u043D\u0434\u0430\u043B\u0430\u0445 \u2014 \u0442\u043E\u043B\u044C\u043A\u043E \u0441\u043F\u043E\u0440\u0442.
 \u0424\u043E\u0440\u043C\u0430\u0442 \u043E\u0434\u043D\u043E\u0433\u043E \u0438\u0433\u0440\u043E\u043A\u0430: {"found":true,"name":"\u0418\u043C\u044F \u0424\u0430\u043C\u0438\u043B\u0438\u044F \u043F\u043E-\u0440\u0443\u0441\u0441\u043A\u0438","pos":"\u043E\u0434\u043D\u0430 \u0438\u0437: ${POSES.join(", ")}","altPositions":["\u0434\u043E 2 \u0434\u043E\u043F\u043E\u043B\u043D\u0438\u0442\u0435\u043B\u044C\u043D\u044B\u0445 \u0440\u0435\u0430\u043B\u044C\u043D\u044B\u0445 \u043F\u043E\u0437\u0438\u0446\u0438\u0439 \u0438\u0433\u0440\u043E\u043A\u0430 \u0438\u0437 \u0442\u043E\u0433\u043E \u0436\u0435 \u0441\u043F\u0438\u0441\u043A\u0430, \u043B\u0438\u0431\u043E [] \u0435\u0441\u043B\u0438 \u0438\u0433\u0440\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u043D\u0430 \u043E\u0434\u043D\u043E\u0439"],"born":"YYYY-MM-DD \u0438\u043B\u0438 YYYY","nation":"\u0441\u0442\u0440\u0430\u043D\u0430/\u0433\u0440\u0430\u0436\u0434\u0430\u043D\u0441\u0442\u0432\u043E (\u0420\u043E\u0441\u0441\u0438\u044F, \u0411\u0435\u043B\u043E\u0440\u0443\u0441\u0441\u0438\u044F, \u0410\u0440\u043C\u0435\u043D\u0438\u044F, \u041A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D, \u0411\u0440\u0430\u0437\u0438\u043B\u0438\u044F \u0438 \u0442.\u0434.)","playedForOtherNationalTeam":false,"otherNationalTeam":"\u0435\u0441\u043B\u0438 \u0438\u0433\u0440\u043E\u043A \u0437\u0430\u0438\u0433\u0440\u0430\u043D \u0437\u0430 \u043D\u0430\u0446\u0438\u043E\u043D\u0430\u043B\u044C\u043D\u0443\u044E \u0441\u0431\u043E\u0440\u043D\u0443\u044E \u0434\u0440\u0443\u0433\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u044B (\u043D\u0430\u043F\u0440. \u0410\u0440\u043C\u0435\u043D\u0438\u044F, \u0413\u0440\u0443\u0437\u0438\u044F, \u0421\u0435\u0440\u0431\u0438\u044F, \u041A\u0430\u0437\u0430\u0445\u0441\u0442\u0430\u043D), \u0443\u043A\u0430\u0437\u0430\u0442\u044C \u0442\u043E\u0447\u043D\u043E\u0435 \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435 \u044D\u0442\u043E\u0439 \u0441\u0431\u043E\u0440\u043D\u043E\u0439, \u0438\u043D\u0430\u0447\u0435 \u043F\u0443\u0441\u0442\u0430\u044F \u0441\u0442\u0440\u043E\u043A\u0430","realClub":"","style":"\u043A\u0430\u043A \u0438\u0433\u0440\u0430\u0435\u0442, \u043B\u044E\u0431\u0438\u043C\u044B\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u043D\u0430 \u043F\u043E\u043B\u0435, 1\u20132 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u044F","achievements":["\u0433\u043B\u0430\u0432\u043D\u044B\u0435 \u0434\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F"],"stats2y":"\u0440\u0435\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043A\u0430 \u0437\u0430 2 \u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0445 \u0441\u0435\u0437\u043E\u043D\u0430 \u043A\u0440\u0430\u0442\u043A\u043E","form":"\u043F\u043E\u0441\u043B\u0435\u0434\u043D\u0438\u0435 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442\u044B \u0438 \u0442\u0440\u0435\u043D\u0434","character":"\u0442\u0435\u043C\u043F\u0435\u0440\u0430\u043C\u0435\u043D\u0442 \u043D\u0430 \u043F\u043E\u043B\u0435: \u0441\u043F\u043E\u043A\u043E\u0439\u043D\u044B\u0439, \u0432\u0441\u043F\u044B\u043B\u044C\u0447\u0438\u0432\u044B\u0439, \u043B\u0438\u0434\u0435\u0440, \u043B\u0435\u0433\u043A\u043E \u043F\u0440\u043E\u0432\u043E\u0446\u0438\u0440\u0443\u0435\u0442\u0441\u044F \u0438 \u0442.\u043F.","news":"\u0441\u043F\u043E\u0440\u0442\u0438\u0432\u043D\u044B\u0435 \u043D\u043E\u0432\u043E\u0441\u0442\u0438 \u0437\u0430 \u0433\u043E\u0434 \u043A\u0440\u0430\u0442\u043A\u043E"}
 \u0414\u043B\u044F \u0441\u043F\u0438\u0441\u043A\u0430 \u0438\u043C\u0451\u043D \u0432\u0435\u0440\u043D\u0438 {"players":[...]} \u0432 \u0442\u043E\u043C \u0436\u0435 \u043F\u043E\u0440\u044F\u0434\u043A\u0435.`;
-function cardFrom(c, extra = {}) {
+function cardFrom(c, extra = {} as any) {
   const hasOtherCap = !!(c.playedForOtherNationalTeam || c.otherNationalTeam && norm(c.otherNationalTeam) !== "\u0440\u043E\u0441\u0441\u0438\u044F" || extra.otherNationalTeam && norm(extra.otherNationalTeam) !== "\u0440\u043E\u0441\u0441\u0438\u044F" || extra.playedForOtherNationalTeam);
   const cPos = c.pos ? normPosCode(c.pos) : "";
   const ePos = extra.pos ? normPosCode(extra.pos) : "";
   const primaryPos = POSES.includes(cPos) ? cPos : (POSES.includes(ePos) ? ePos : "\u0426\u041F");
   const altPositions = normalizeAltPositions(c.altPositions ?? extra.altPositions, primaryPos);
-  return {
+  const resolvedTeamId = extra.teamId || null;
+  const resolvedAbroadClub = !resolvedTeamId ? (String(extra.abroadClub || c.abroadClub || "").trim() || null) : null;
+  const resolvedAbroadCountry = !resolvedTeamId && resolvedAbroadClub ? String(extra.abroadCountry || c.abroadCountry || "").trim() : "";
+  const obj: any = {
     id: uid(),
-    teamId: extra.teamId || null,
+    teamId: resolvedTeamId,
     name: String(c.name || extra.name || "").trim(),
     pos: primaryPos,
     altPositions,
@@ -10356,6 +10361,11 @@ function cardFrom(c, extra = {}) {
     banByComp: {},
     ycByComp: {}
   };
+  if (resolvedAbroadClub) {
+    obj.abroadClub = resolvedAbroadClub;
+    if (resolvedAbroadCountry) obj.abroadCountry = resolvedAbroadCountry;
+  }
+  return obj;
 }
 var findPlayerByName = (n) => {
   const k = norm(n);
@@ -17167,6 +17177,8 @@ var pubTeam = (t) => {
     id: t.id,
     name: t.name,
     comp: t.comp,
+    country: t.country || "",
+    isAbroad: t.comp === "europe",
     city: t.city,
     stadium: t.stadium,
     logo: official.startsWith("/assets/") ? official : t.logo || official,
@@ -17188,7 +17200,12 @@ var pubPlayer = (p, refComp: any = null) => {
     yellowCycleByComp[k] = cyc;
     if (cyc > 0) yellowParts.push(`${discCompTitle(k)} ${cyc}/4`);
   }
-  const activeComp = normDiscComp(refComp) || normDiscComp(team(p.teamId)?.comp);
+  const tmObj = p.teamId ? team(p.teamId) : null;
+  const abroadLabel = p.abroadClub
+    ? (p.abroadCountry ? `${p.abroadClub} (${p.abroadCountry})` : p.abroadClub)
+    : null;
+  const teamLabel = tmObj ? tmObj.name : (abroadLabel || "Свободный агент");
+  const activeComp = normDiscComp(refComp) || normDiscComp(tmObj?.comp);
   const ycForActive = activeComp ? (ycByComp[activeComp] || 0) % 4 : (p.seasonYC || 0) % 4;
   return {
     id: p.id,
@@ -17205,8 +17222,13 @@ var pubPlayer = (p, refComp: any = null) => {
     otherNationalTeam: p.otherNationalTeam || "",
     isLegionnaire: isLegionnaire(p),
     legionStatus: getLegionnaireStatus(p),
-    teamId: p.teamId,
-    team: p.teamId ? tn(p.teamId) : "Свободный агент",
+    teamId: p.teamId || null,
+    team: teamLabel,
+    teamComp: tmObj?.comp || null,
+    abroadClub: p.abroadClub || null,
+    abroadCountry: p.abroadCountry || null,
+    isAbroad: Boolean((tmObj && tmObj.comp === "europe") || p.abroadClub),
+    isFreeAgent: Boolean(!p.teamId && !p.abroadClub),
     teamLogo: p.teamId ? teamLogo(p.teamId) : null,
     formerClub: p.formerClub || null,
     releasedAt: p.releasedAt || null,
@@ -20713,10 +20735,12 @@ app.post("/api/club/squad/add", needClub, async (req, res) => {
       const isAdm = req.me?.role === "admin";
       removePlayerFromClubUsage(fromTeamId, p.id);
       p.teamId = req.tid;
+      delete p.abroadClub;
+      delete p.abroadCountry;
       delete p.formerClub;
       delete p.releasedAt;
       p.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      const registered = (req.body.register !== false && (tw.canEdit || isAdm)) ? tryAutoRegisterPlayer(req.tid, p) : false;
+      const registered = (req.body.register !== false && (tw.canEdit || isAdm)) ? tryAutoRegisterPlayer(req.tid, p, isAdm) : false;
       if (!Array.isArray(db.transfers)) db.transfers = [];
       const famTrObj: any = {
         id: uid(),
@@ -20851,9 +20875,11 @@ app.post("/api/club/squad/add", needClub, async (req, res) => {
     const prevTeamId = p.teamId;
     if (prevTeamId && prevTeamId !== req.tid) removePlayerFromClubUsage(prevTeamId, p.id);
     p.teamId = req.tid;
+    delete p.abroadClub;
+    delete p.abroadCountry;
     delete p.formerClub;
     delete p.releasedAt;
-    const registered = req.body.register ? tryAutoRegisterPlayer(req.tid, p) : false;
+    const registered = req.body.register ? tryAutoRegisterPlayer(req.tid, p, req.me?.role === "admin") : false;
     if ((prevTeamId && prevTeamId !== req.tid) || req.body.fromForeignClub) {
       const isMand = !!(req.body.mandatoryBuyout || String(req.body.transferType || "").includes("mandatory"));
       const isLn = isMand || String(req.body.transferType || "").includes("loan");
@@ -20981,6 +21007,8 @@ app.post("/api/club/squad/add-batch", needClub, async (req, res) => {
       const prevTidBatch = p.teamId;
       if (prevTidBatch && prevTidBatch !== req.tid) removePlayerFromClubUsage(prevTidBatch, p.id);
       p.teamId = req.tid;
+      delete p.abroadClub;
+      delete p.abroadCountry;
       delete p.formerClub;
       delete p.releasedAt;
       if (prevTidBatch && prevTidBatch !== req.tid) {
@@ -20996,7 +21024,7 @@ app.post("/api/club/squad/add-batch", needClub, async (req, res) => {
         }, p);
       }
       added.push({ id: p.id, name: p.name, pos: p.pos });
-      if (req.body.register && tryAutoRegisterPlayer(req.tid, p)) {
+      if (req.body.register && tryAutoRegisterPlayer(req.tid, p, req.me?.role === "admin")) {
         registered.push({ id: p.id, name: p.name });
       }
     }
@@ -22491,6 +22519,8 @@ app.get("/api/admin/overview", admin, async (req, res) => {
       submitted: !!(db.settings.squadSubmissions?.[t.id]?.season === S() && Array.isArray(db.squads[t.id])),
       code: t.code
     })),
+    foreignClubPresets: FOREIGN_CLUBS.map((c) => ({ id: c.id, name: c.name, country: c.country, league: c.league, flag: c.flag })),
+    abroadPoolNames: [...new Set((db.players || []).map((p) => String(p.abroadClub || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
     transferWindow: getTransferWindowState(),
     settings: {
       ...db.settings,
@@ -22963,22 +22993,38 @@ app.post("/api/admin/team", admin, (req, res) => {
   if (b.delete) {
     if (!t) return fail(res, "\u041D\u0435\u0442 \u0442\u0430\u043A\u043E\u0439 \u043A\u043E\u043C\u0430\u043D\u0434\u044B");
     if (db.fixtures.some((f) => f.home === t.id || f.away === t.id)) return fail(res, "\u0423 \u043A\u043E\u043C\u0430\u043D\u0434\u044B \u0435\u0441\u0442\u044C \u043C\u0430\u0442\u0447\u0438 \u2014 \u0443\u0434\u0430\u043B\u044F\u0442\u044C \u043D\u0435\u043B\u044C\u0437\u044F");
+    for (const pl of db.players || []) {
+      if (pl.teamId === t.id) {
+        removePlayerFromClubUsage(t.id, pl.id);
+        pl.teamId = null;
+        if (t.comp === "europe") {
+          pl.abroadClub = "\u0415\u0432\u0440\u043E\u043F\u0430";
+          if (t.country) pl.abroadCountry = t.country;
+        }
+      }
+    }
+    if (db.squads) delete db.squads[t.id];
+    if (db.tactics) delete db.tactics[t.id];
+    if (Array.isArray(db.staff)) db.staff = db.staff.filter((s) => s.teamId !== t.id);
     db.teams = db.teams.filter((x) => x !== t);
     save();
     return res.json({ ok: 1 });
   }
   if (!String(b.name || "").trim()) return fail(res, "\u041D\u0443\u0436\u043D\u043E \u043D\u0430\u0437\u0432\u0430\u043D\u0438\u0435");
+  const isNew = !t;
   if (!t) {
-    t = { id: uid(), code: "" };
+    t = { id: uid(), code: "", budget: b.comp === "europe" ? 1e7 : 5e5 };
     db.teams.push(t);
   }
   const name = b.name.trim();
   const comp = db.comps.some((c) => c.id === b.comp) ? b.comp : "rpl";
   const logo = b.logo ? b.logo.trim() : t.logo || getTeamLogo(name, null, comp);
   const parentTeamId = b.parentTeamId && String(b.parentTeamId).trim() !== t.id && team(String(b.parentTeamId).trim()) ? String(b.parentTeamId).trim() : null;
+  const country = b.country !== void 0 ? String(b.country || "").trim() : (t.country || "");
   Object.assign(t, {
     name,
     comp,
+    country,
     logo,
     parentTeamId,
     city: b.city || "",
@@ -22986,6 +23032,7 @@ app.post("/api/admin/team", admin, (req, res) => {
     lat: b.lat === "" || b.lat == null ? t.lat ?? null : +b.lat,
     lon: b.lon === "" || b.lon == null ? t.lon ?? null : +b.lon
   });
+  if (isNew && t.budget == null) t.budget = comp === "europe" ? 1e7 : 5e5;
   ensureTeamCodes();
   save();
   res.json({ ok: 1, team: pubTeam(t) });
@@ -23003,9 +23050,11 @@ app.post("/api/admin/import", admin, async (req, res) => {
     for (const p of out) {
       if (p.teamId && p.teamId !== tid) removePlayerFromClubUsage(p.teamId, p.id);
       p.teamId = tid;
+      delete p.abroadClub;
+      delete p.abroadCountry;
       delete p.formerClub;
       delete p.releasedAt;
-      tryAutoRegisterPlayer(tid, p);
+      tryAutoRegisterPlayer(tid, p, true);
     }
     save();
     res.json({ ok: 1, added: out.length, verified: out.filter((p) => p.verified).length });
@@ -23037,14 +23086,27 @@ app.post("/api/admin/squads/import", admin, (req, res) => {
 app.get("/api/admin/players", admin, (req, res) => {
   const q2 = norm(req.query.q || "");
   let l = db.players;
-  if (req.query.teamId) l = l.filter((p) => p.teamId === req.query.teamId);
+  const tidF = String(req.query.teamId || "").trim();
+  if (tidF === "__free__") {
+    l = l.filter((p) => !p.teamId && !p.abroadClub);
+  } else if (tidF === "__europe__") {
+    l = l.filter((p) => (p.teamId && team(p.teamId)?.comp === "europe") || !!p.abroadClub);
+  } else if (tidF === "__abroad_pool__") {
+    l = l.filter((p) => !p.teamId && !!p.abroadClub);
+  } else if (tidF) {
+    l = l.filter((p) => p.teamId === tidF);
+  }
+  const exTid = String(req.query.excludeTeamId || "").trim();
+  if (exTid) {
+    l = l.filter((p) => p.teamId !== exTid);
+  }
   const eligible = String(req.query.eligible || "").trim().toLowerCase();
   if (eligible === "u21") {
     l = l.filter((p) => isRussianNationalEligible(p, "u21"));
   } else if (eligible === "main" || eligible === "rus") {
     l = l.filter((p) => isRussianNationalEligible(p, "main"));
   }
-  if (q2) l = l.filter((p) => norm(p.name).includes(q2));
+  if (q2) l = l.filter((p) => norm(p.name).includes(q2) || norm(p.abroadClub || "").includes(q2) || norm(p.abroadCountry || "").includes(q2));
   const limit = Math.min(2000, Math.max(50, Number(req.query.limit) || (eligible ? 1500 : 300)));
   if (eligible) {
     l = [...l].sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ru"));
@@ -23144,14 +23206,29 @@ app.post("/api/admin/foreign-offers/generate", admin, async (req, res) => {
 app.post("/api/admin/player", admin, (req, res) => {
   const b = req.body;
   if (b.delete) {
-    db.players = db.players.filter((p2) => p2.id !== b.id);
     for (const k of Object.keys(db.squads)) db.squads[k] = db.squads[k].filter((i) => i !== b.id);
+    const exDel = player(b.id);
+    if (exDel?.teamId) removePlayerFromClubUsage(exDel.teamId, b.id);
+    db.players = db.players.filter((p2) => p2.id !== b.id);
     save();
     return res.json({ ok: 1 });
   }
   let p = b.id && player(b.id);
+  const hasTeamField = "teamId" in b;
+  const rawTid = hasTeamField ? String(b.teamId || "").trim() : void 0;
+  const hasAbroadInput = ("abroadClub" in b) && String(b.abroadClub || "").trim().length > 0;
+  const isEuropePool = rawTid === "__europe__" || (!rawTid && hasTeamField && hasAbroadInput);
+  const resolvedCreateTid = (!isEuropePool && rawTid && team(rawTid)) ? rawTid : null;
   if (!p) {
-    p = cardFrom({ name: b.name }, { teamId: b.teamId });
+    if (!String(b.name || "").trim()) return fail(res, "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0438\u043C\u044F \u0438\u0433\u0440\u043E\u043A\u0430");
+    p = cardFrom(
+      { name: b.name },
+      {
+        teamId: resolvedCreateTid,
+        abroadClub: isEuropePool ? (String(b.abroadClub || "").trim() || "\u0415\u0432\u0440\u043E\u043F\u0430") : (hasAbroadInput ? String(b.abroadClub || "").trim() : null),
+        abroadCountry: (isEuropePool || hasAbroadInput) ? String(b.abroadCountry || "").trim() : ""
+      }
+    );
     db.players.push(p);
   }
   for (const k of ["name", "born", "nation", "realClub", "style", "stats2y", "form", "character", "news", "otherNationalTeam"]) {
@@ -23177,15 +23254,39 @@ app.post("/api/admin/player", admin, (req, res) => {
   if (b.achievements !== void 0) {
     p.achievements = Array.isArray(b.achievements) ? b.achievements : String(b.achievements).split("\n").map((s) => s.trim()).filter(Boolean);
   }
-  if ("teamId" in b) {
-    const nextTid = b.teamId || null;
-    if (p.teamId && p.teamId !== nextTid) removePlayerFromClubUsage(p.teamId, p.id);
-    p.teamId = nextTid;
-    if (nextTid) {
-      delete p.formerClub;
-      delete p.releasedAt;
-      if (b.register !== false) tryAutoRegisterPlayer(nextTid, p);
+  if (hasTeamField || ("abroadClub" in b) || ("abroadCountry" in b)) {
+    if (isEuropePool || (!hasTeamField && !p.teamId && ("abroadClub" in b || "abroadCountry" in b))) {
+      if (p.teamId) removePlayerFromClubUsage(p.teamId, p.id);
+      p.teamId = null;
+      const nextAbroad = ("abroadClub" in b) ? String(b.abroadClub || "").trim() : (p.abroadClub || "");
+      const finalAbroad = nextAbroad || (isEuropePool ? "\u0415\u0432\u0440\u043E\u043F\u0430" : "");
+      if (finalAbroad) {
+        p.abroadClub = finalAbroad;
+        if ("abroadCountry" in b) {
+          const ac = String(b.abroadCountry || "").trim();
+          if (ac) p.abroadCountry = ac;
+          else delete p.abroadCountry;
+        }
+        delete p.formerClub;
+        delete p.releasedAt;
+      } else {
+        delete p.abroadClub;
+        delete p.abroadCountry;
+      }
+    } else if (hasTeamField) {
+      const nextTid = (rawTid && team(rawTid)) ? rawTid : null;
+      if (p.teamId && p.teamId !== nextTid) removePlayerFromClubUsage(p.teamId, p.id);
+      p.teamId = nextTid;
+      delete p.abroadClub;
+      delete p.abroadCountry;
+      if (nextTid) {
+        delete p.formerClub;
+        delete p.releasedAt;
+        if (b.register !== false) tryAutoRegisterPlayer(nextTid, p, true);
+      }
     }
+  } else if (p.teamId && b.register !== false) {
+    tryAutoRegisterPlayer(p.teamId, p, true);
   }
   // Дисквалификация:
   const reqBanComp = b.banComp !== void 0 ? String(b.banComp || "").trim() : void 0;
@@ -23283,7 +23384,63 @@ app.post("/api/admin/player", admin, (req, res) => {
   }
   p.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
   save();
-  res.json({ ok: 1, player: p });
+  res.json({ ok: 1, player: pubPlayer(p) });
+});
+app.post("/api/admin/player/move", admin, (req, res) => {
+  const b = req.body || {};
+  const rawIds = Array.isArray(b.playerIds) ? b.playerIds : (b.playerId ? [b.playerId] : []);
+  const ids = [...new Set(rawIds.map((x) => String(x || "").trim()).filter(Boolean))];
+  if (!ids.length) return fail(res, "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E\u0433\u043E \u0438\u0433\u0440\u043E\u043A\u0430");
+  const rawTarget = String(b.targetTeamId ?? b.teamId ?? "").trim();
+  const isEuropeTarget = rawTarget === "__europe__";
+  const isFreeTarget = !rawTarget || rawTarget === "__free__";
+  const targetClub = (!isEuropeTarget && !isFreeTarget) ? team(rawTarget) : null;
+  if (!isEuropeTarget && !isFreeTarget && !targetClub) {
+    return fail(res, "\u0426\u0435\u043B\u0435\u0432\u043E\u0439 \u043A\u043B\u0443\u0431 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D", 404);
+  }
+  const abroadClubName = isEuropeTarget ? (String(b.abroadClub || "").trim() || "\u0415\u0432\u0440\u043E\u043F\u0430") : "";
+  const abroadCountryName = isEuropeTarget ? String(b.abroadCountry || "").trim() : "";
+  const register = b.register !== false;
+  const moved = [];
+  for (const pid of ids) {
+    const p = player(pid);
+    if (!p) continue;
+    if (targetClub) {
+      if (p.teamId && p.teamId !== targetClub.id) removePlayerFromClubUsage(p.teamId, p.id);
+      p.teamId = targetClub.id;
+      delete p.abroadClub;
+      delete p.abroadCountry;
+      delete p.formerClub;
+      delete p.releasedAt;
+      if (register) tryAutoRegisterPlayer(targetClub.id, p, true);
+    } else if (isEuropeTarget) {
+      if (p.teamId) removePlayerFromClubUsage(p.teamId, p.id);
+      p.teamId = null;
+      p.abroadClub = abroadClubName;
+      if (abroadCountryName) p.abroadCountry = abroadCountryName;
+      else delete p.abroadCountry;
+      delete p.formerClub;
+      delete p.releasedAt;
+    } else {
+      if (p.teamId) removePlayerFromClubUsage(p.teamId, p.id);
+      p.teamId = null;
+      delete p.abroadClub;
+      delete p.abroadCountry;
+    }
+    p.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    moved.push(p);
+  }
+  if (!moved.length) return fail(res, "\u0418\u0433\u0440\u043E\u043A\u0438 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u044B", 404);
+  save();
+  const destLabel = targetClub ? `\xAB${targetClub.name}\xBB` : (isEuropeTarget ? `\xAB${abroadClubName}\xBB` : "\u0441\u0432\u043E\u0431\u043E\u0434\u043D\u044B\u0435 \u0430\u0433\u0435\u043D\u0442\u044B");
+  res.json({
+    ok: 1,
+    movedCount: moved.length,
+    players: moved.map((p) => pubPlayer(p)),
+    message: moved.length === 1
+      ? `${moved[0].name} \u043F\u0435\u0440\u0435\u043C\u0435\u0449\u0451\u043D \u0432 ${destLabel}`
+      : `\u041F\u0435\u0440\u0435\u043C\u0435\u0449\u0435\u043D\u043E \u0438\u0433\u0440\u043E\u043A\u043E\u0432: ${moved.length} \u2192 ${destLabel}`
+  });
 });
 app.post("/api/admin/refresh", admin, async (req, res) => {
   const names = squadOf(req.body.teamId).map((p) => p.name);

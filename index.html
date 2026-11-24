@@ -12245,13 +12245,14 @@ function intraLineupForm(box, f, c, withT, app) {
 }
 
 /* ───── админка ───── */
-let AT = 'matches', AF = { comp: 'rpl', round: '' }, ADM_TRQ_TAB = 'pending', ADM_RPL_TR_TAB = 'pending', ADMIN_RENDER_SEQ = 0;
+let AT = 'matches', AF = { comp: 'rpl', round: '' }, ADM_TRQ_TAB = 'pending', ADM_RPL_TR_TAB = 'pending', ADMIN_RENDER_SEQ = 0, AC_FILT = 'all', AP_TEAM_FILT = '', AP_QUERY = '';
 async function pgAdmin(app) {
   if (S.me?.role !== 'admin') return location.hash = '#/login';
   const renderSeq = ++ADMIN_RENDER_SEQ;
   const ov = await api('/admin/overview');
   if (renderSeq !== ADMIN_RENDER_SEQ || !app.isConnected) return;
   const T = ov.teams;
+  if (S.st && Array.isArray(T)) S.st.teams = T;
   const tabs = [
     ['matches', 'Матчи'],
     ['draw', '🎲 Жеребьёвка'],
@@ -12337,7 +12338,7 @@ async function pgAdmin(app) {
         <button class="btn alt sm" id="btn_recalc_realtimes">🎲 Пересчитать реальные даты и часы (по МСК)</button>
       </div>
     </div>
-    <div class="panel"><div class="row">${(S.st?.comps || []).map(c => `<button class="btn sm ${c.id === AF.comp ? '' : 'alt'}" data-c="${c.id}">${e(c.name)}</button>`).join('')}<select id="rsel" style="max-width:200px">${labels.map(l => `<option ${l === AF.round ? 'selected' : ''}>${e(l)}</option>`).join('')}</select>
+    <div class="panel"><div class="row">${(S.st?.comps || []).filter(c => c.type !== 'abroad').map(c => `<button class="btn sm ${c.id === AF.comp ? '' : 'alt'}" data-c="${c.id}">${e(c.name)}</button>`).join('')}<select id="rsel" style="max-width:200px">${labels.map(l => `<option ${l === AF.round ? 'selected' : ''}>${e(l)}</option>`).join('')}</select>
     <button class="btn" id="runr">Запустить все матчи этого тура</button></div>
     ${list.length ? `<div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);gap:8px;flex-wrap:wrap;align-items:center">
       <span class="small"><b>Перенос всего тура (реальное время):</b></span>
@@ -12814,29 +12815,236 @@ async function pgAdmin(app) {
     });
   }
   else if (AT === 'clubs') {
+    const euClubs = T.filter(t => t.comp === 'europe');
+    const ruClubs = T.filter(t => t.comp !== 'europe');
+    const shownTeams = AC_FILT === 'europe' ? euClubs : (AC_FILT === 'ru' ? ruClubs : T);
     ab.innerHTML = `<div class="panel">
-      <div class="row sp">
-        <h3>Команды и логотипы (${T.length})</h3>
-        <span class="row" style="gap:8px"><button class="btn" id="impsq">📥 Импорт составов из файла</button><button class="btn" id="addt">+ Новая команда</button></span>
+      <div class="row sp" style="flex-wrap:wrap;gap:8px">
+        <h3>Команды и логотипы (${shownTeams.length} из ${T.length})</h3>
+        <span class="row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn alt" id="impsq">📥 Импорт составов из файла</button>
+          <button class="btn" id="addt_eu" style="background:#4338ca;color:#fff">+ 🌍 Клуб Европы / свой</button>
+          <button class="btn" id="addt">+ Новая команда</button>
+        </span>
       </div>
-      <p class="muted small">Все команды снабжены аутентичными векторными эмблемами. Вы можете менять название, стадион, код и загружать собственный логотип.</p>
-      <div class="wrap"><table><thead><tr><th class="l">Эмблема</th><th class="l">Команда</th><th class="l">Лига</th><th class="l">Код</th><th>В составе</th><th>Заявка на сезон</th><th></th></tr></thead><tbody>${T.map(t => `<tr>
+      <div class="row" style="gap:6px;margin:10px 0;flex-wrap:wrap">
+        <button type="button" class="btn sm ${AC_FILT === 'all' ? 'on' : 'alt'}" data-ac-filt="all">Все команды (${T.length})</button>
+        <button type="button" class="btn sm ${AC_FILT === 'ru' ? 'on' : 'alt'}" data-ac-filt="ru">🏆 Лиги России и Медиалига (${ruClubs.length})</button>
+        <button type="button" class="btn sm ${AC_FILT === 'europe' ? 'on' : 'alt'}" data-ac-filt="europe" style="${AC_FILT === 'europe' ? 'background:#4338ca;color:#fff' : 'border-color:#a5b4fc;color:#3730a3'}">🌍 Европа / пользовательские клубы (${euClubs.length})</button>
+      </div>
+      <p class="muted small">Вы можете создавать свои клубы (в том числе в категории «Европа»), наполнять их новыми или существующими игроками кнопкой «👥 Наполнить» или «Состав», а также менять эмблемы и параметры.</p>
+      <div class="wrap"><table><thead><tr><th class="l">Эмблема</th><th class="l">Команда</th><th class="l">Лига / Регион</th><th class="l">Код</th><th>В составе</th><th>Заявка на сезон</th><th></th></tr></thead><tbody>${shownTeams.map(t => `<tr>
         <td class="l"><img class="t-logo md" src="${t.logo}" alt="${e(t.name)}"/></td>
-        <td class="l"><b>${e(t.name)}</b></td>
-        <td class="l">${e(compName(t.comp))}</td>
+        <td class="l"><b>${e(t.name)}</b>${t.country && t.comp === 'europe' ? `<div class="small muted">🌍 ${e(t.country)}</div>` : ''}</td>
+        <td class="l">${t.comp === 'europe' ? '<span class="tag sm" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe">🌍 Европа</span>' : e(compName(t.comp))}</td>
         <td class="l">${t.code ? `<span class="code" data-cp="${t.code}" style="cursor:pointer" title="Скопировать">${t.code}</span>` : '<span class="muted">—</span>'}</td>
-        <td>${t.roster ?? t.squad}</td>
-        <td><b>${t.squad}/28</b> ${t.submitted ? '<span class="tag" style="background:#dcfce7;color:#166534;font-size:11px">подана</span>' : '<span class="muted small">черновик</span>'}</td>
-        <td class="l"><button class="btn alt sm" data-club-squad="${t.id}" title="Открыть состав и аренды клуба">Состав</button> <button class="btn alt sm" data-te="${t.id}">Изменить</button> <button class="btn alt sm" data-im="${t.id}">Загрузить игроков</button></td>
-      </tr>`).join('')}</tbody></table></div>
+        <td><b>${t.roster ?? t.squad}</b></td>
+        <td>${t.comp === 'europe' ? `<b>${t.squad}</b> <span class="muted small">в заявке</span>` : `<b>${t.squad}/28</b> ${t.submitted ? '<span class="tag" style="background:#dcfce7;color:#166534;font-size:11px">подана</span>' : '<span class="muted small">черновик</span>'}`}</td>
+        <td class="l" style="white-space:nowrap"><button class="btn sm" data-populate-club="${t.id}" style="background:#0f766e;color:#fff" title="Наполнить клуб: создать игроков или переместить из других клубов/Европы">👥 Наполнить</button> <button class="btn alt sm" data-club-squad="${t.id}" title="Открыть состав и аренды клуба">Состав</button> <button class="btn alt sm" data-te="${t.id}">Изменить</button> <button class="btn alt sm" data-im="${t.id}">Загрузить</button></td>
+      </tr>`).join('') || '<tr><td colspan="7" class="empty">В этом разделе пока нет клубов. Нажмите «+ 🌍 Клуб Европы / свой», чтобы создать свой клуб.</td></tr>'}</tbody></table></div>
     </div>`;
 
+    ab.querySelectorAll('[data-ac-filt]').forEach(b => b.onclick = () => { AC_FILT = b.dataset.acFilt || 'all'; re(); });
     ab.querySelectorAll('[data-cp]').forEach(s => s.onclick = () => { navigator.clipboard?.writeText(s.dataset.cp); toast('Код скопирован'); });
 
-    const teamForm = t => {
-      const curLogo = t?.logo || '';
+    const openPopulateClubModal = (targetTeam, onDone) => {
+      let popMode = 'move';
+      let popSrc = '';
+      let popQ = '';
+      let popSelected = new Set();
+      let popList = [];
+      let popChanged = false;
+      const euOpts = T.filter(x => x.id !== targetTeam.id && x.comp === 'europe');
+      const ruOpts = T.filter(x => x.id !== targetTeam.id && x.comp !== 'europe');
       const m = modal(`
-      <h3>${t ? 'Команда: ' + e(t.name) : 'Новая команда'}</h3>
+        <h3>👥 Наполнить клуб: ${e(targetTeam.name)}</h3>
+        <div class="row sp" style="flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+          <div class="row" style="gap:8px;align-items:center">
+            ${targetTeam.logo ? `<img class="t-logo sm" src="${targetTeam.logo}" alt=""/>` : ''}
+            <div>
+              <b>${e(targetTeam.name)}</b>
+              <div class="small muted">${targetTeam.comp === 'europe' ? '🌍 Европа' : e(compName(targetTeam.comp))}${targetTeam.country ? ` · ${e(targetTeam.country)}` : ''}</div>
+            </div>
+          </div>
+          <div id="pop_roster_badge" class="tag">В составе: ${targetTeam.roster ?? targetTeam.squad ?? 0}</div>
+        </div>
+        <div class="tabs" style="margin-bottom:10px">
+          <button type="button" id="pop_tab_move" class="on">↔ Переместить существующих игроков</button>
+          <button type="button" id="pop_tab_create">➕ Создать нового игрока в клубе</button>
+        </div>
+        <div id="pop_pane_move">
+          <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <input id="pop_q" placeholder="Поиск по фамилии или зарубежному клубу…" style="flex:1;min-width:190px">
+            <select id="pop_src" style="max-width:240px">
+              <option value="">Откуда угодно (кроме «${e(targetTeam.name)}»)</option>
+              <option value="__europe__">🌍 Вся Европа (клубы + пул)</option>
+              <option value="__abroad_pool__">🌍 Просто «Европа» (пул)</option>
+              <option value="__free__">🆓 Свободные агенты</option>
+              ${euOpts.length ? `<optgroup label="🌍 Созданные клубы (Европа)">${euOpts.map(x => `<option value="${x.id}">${e(x.name)}</option>`).join('')}</optgroup>` : ''}
+              ${ruOpts.length ? `<optgroup label="🏆 Клубы лиг России">${ruOpts.map(x => `<option value="${x.id}">${e(x.name)}</option>`).join('')}</optgroup>` : ''}
+            </select>
+          </div>
+          <div class="row sp" style="gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <label class="small" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin:0"><input type="checkbox" id="pop_reg" checked style="width:auto"> Сразу включить в заявку клуба</label>
+            <div class="row" style="gap:6px">
+              <button type="button" class="btn alt sm" id="pop_sel_all">Выбрать видимых</button>
+              <button type="button" class="btn sm" id="pop_move_go" disabled style="background:#0f766e;color:#fff">Переместить выбранных (0)</button>
+            </div>
+          </div>
+          <div id="pop_list" style="max-height:310px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px"></div>
+        </div>
+        <div id="pop_pane_create" style="display:none">
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <div style="flex:2;min-width:200px"><label>Имя и фамилия</label><input id="pop_new_name" placeholder="Например: Марко Верратти"></div>
+            <div style="flex:0.8;min-width:90px"><label>Номер №</label><input type="number" id="pop_new_num" min="1" max="99" placeholder="№"></div>
+          </div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:110px">
+              <label>Позиция</label>
+              <select id="pop_new_pos">${CLIENT_POSES.map(pos => `<option value="${pos}" ${pos === 'ЦП' ? 'selected' : ''}>${pos}</option>`).join('')}</select>
+            </div>
+            <div style="flex:1;min-width:140px"><label>Дата/год рождения</label><input id="pop_new_born" placeholder="1998 или 1998-05-14"></div>
+            <div style="flex:1.2;min-width:160px"><label>Гражданство</label><input id="pop_new_nation" value="${e(targetTeam.country && targetTeam.country !== 'Европа' ? targetTeam.country : 'Россия')}" placeholder="Россия, Франция, Бразилия…"></div>
+          </div>
+          <label class="small" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin:8px 0"><input type="checkbox" id="pop_new_reg" checked style="width:auto"> Включить в заявку клуба</label>
+          <div class="row" style="gap:8px;margin-top:8px">
+            <button type="button" class="btn" id="pop_create_go" style="background:#0f766e;color:#fff">➕ Создать игрока в «${e(targetTeam.name)}»</button>
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end;margin-top:14px">
+          <button type="button" class="btn alt" id="pop_close">Готово / Закрыть</button>
+        </div>`, m => {
+        const updMoveBtn = () => {
+          const btn = m.querySelector('#pop_move_go');
+          if (!btn) return;
+          btn.disabled = popSelected.size === 0;
+          btn.textContent = `Переместить выбранных (${popSelected.size})`;
+        };
+        const renderPopList = () => {
+          const box = m.querySelector('#pop_list');
+          if (!box) return;
+          if (!popList.length) {
+            box.innerHTML = '<div class="empty" style="padding:18px">Подходящих игроков не найдено. Попробуйте другой фильтр или вкладку «Создать нового игрока».</div>';
+            return;
+          }
+          box.innerHTML = popList.map(p => {
+            const chk = popSelected.has(p.id) ? 'checked' : '';
+            return `<label class="row sp" style="padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;margin:0;gap:8px">
+              <span class="row" style="gap:8px;align-items:center;flex:1;min-width:0">
+                <input type="checkbox" data-pop-chk="${p.id}" ${chk} style="width:auto">
+                ${clientPosBadgeHtml(p)}
+                <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e(p.name)}</b>
+                <span class="muted small">${e(p.nation || 'Россия')}${age(p.born) && age(p.born) !== '—' ? ` · ${age(p.born)} л.` : ''}</span>
+              </span>
+              <span class="tag sm" style="${p.isAbroad ? 'background:#eef2ff;color:#3730a3' : ''}">${p.isAbroad && !p.teamLogo ? '🌍 ' : ''}${e(p.team)}</span>
+            </label>`;
+          }).join('');
+          box.querySelectorAll('[data-pop-chk]').forEach(cEl => {
+            cEl.onchange = () => {
+              if (cEl.checked) popSelected.add(cEl.dataset.popChk);
+              else popSelected.delete(cEl.dataset.popChk);
+              updMoveBtn();
+            };
+          });
+        };
+        const loadPopPlayers = async () => {
+          const params = new URLSearchParams({
+            q: popQ,
+            excludeTeamId: targetTeam.id,
+            limit: '250'
+          });
+          if (popSrc) params.set('teamId', popSrc);
+          popList = await api('/admin/players?' + params.toString());
+          renderPopList();
+        };
+        const refreshRosterBadge = async () => {
+          const cur = await api(`/admin/players?teamId=${encodeURIComponent(targetTeam.id)}&limit=300`);
+          const badge = m.querySelector('#pop_roster_badge');
+          if (badge) badge.textContent = `В составе: ${cur.length}`;
+        };
+
+        m.querySelector('#pop_tab_move').onclick = () => {
+          popMode = 'move';
+          m.querySelector('#pop_tab_move').className = 'on';
+          m.querySelector('#pop_tab_create').className = '';
+          m.querySelector('#pop_pane_move').style.display = '';
+          m.querySelector('#pop_pane_create').style.display = 'none';
+        };
+        m.querySelector('#pop_tab_create').onclick = () => {
+          popMode = 'create';
+          m.querySelector('#pop_tab_create').className = 'on';
+          m.querySelector('#pop_tab_move').className = '';
+          m.querySelector('#pop_pane_create').style.display = '';
+          m.querySelector('#pop_pane_move').style.display = 'none';
+          m.querySelector('#pop_new_name')?.focus();
+        };
+
+        let qt = null;
+        m.querySelector('#pop_q').oninput = ev => {
+          popQ = ev.target.value;
+          clearTimeout(qt);
+          qt = setTimeout(loadPopPlayers, 220);
+        };
+        m.querySelector('#pop_src').onchange = ev => {
+          popSrc = ev.target.value;
+          loadPopPlayers();
+        };
+        m.querySelector('#pop_sel_all').onclick = () => {
+          const allSel = popList.length > 0 && popList.every(p => popSelected.has(p.id));
+          if (allSel) popList.forEach(p => popSelected.delete(p.id));
+          else popList.forEach(p => popSelected.add(p.id));
+          renderPopList();
+          updMoveBtn();
+        };
+        m.querySelector('#pop_move_go').onclick = async () => {
+          if (!popSelected.size) return;
+          const ids = [...popSelected];
+          const r = await act(() => api('/admin/player/move', {
+            playerIds: ids,
+            targetTeamId: targetTeam.id,
+            register: !!m.querySelector('#pop_reg')?.checked
+          }), res => res.message || `Перемещено: ${res.movedCount}`);
+          if (r) {
+            popChanged = true;
+            popSelected.clear();
+            updMoveBtn();
+            await Promise.all([loadPopPlayers(), refreshRosterBadge()]);
+          }
+        };
+        m.querySelector('#pop_create_go').onclick = async () => {
+          const nameVal = m.querySelector('#pop_new_name').value.trim();
+          if (!nameVal) return toast('Введите имя игрока', true);
+          const r = await act(() => api('/admin/player', {
+            name: nameVal,
+            pos: m.querySelector('#pop_new_pos').value,
+            born: m.querySelector('#pop_new_born').value.trim(),
+            nation: m.querySelector('#pop_new_nation').value.trim() || 'Россия',
+            number: m.querySelector('#pop_new_num').value || null,
+            teamId: targetTeam.id,
+            register: !!m.querySelector('#pop_new_reg')?.checked
+          }), res => `Игрок ${res.player?.name || nameVal} создан в «${targetTeam.name}»`);
+          if (r) {
+            popChanged = true;
+            m.querySelector('#pop_new_name').value = '';
+            m.querySelector('#pop_new_num').value = '';
+            await refreshRosterBadge();
+          }
+        };
+        const closePop = () => {
+          m.remove();
+          if (popChanged && typeof onDone === 'function') onDone();
+        };
+        m.querySelector('#pop_close').onclick = closePop;
+        loadPopPlayers();
+      });
+    };
+
+    const teamForm = (t, defaultComp = '') => {
+      const curLogo = t?.logo || '';
+      const initComp = t?.comp || defaultComp || (AC_FILT === 'europe' ? 'europe' : 'rpl');
+      const compChoices = (S.st?.comps || []).filter(c => c.type === 'league' || c.type === 'abroad');
+      const m = modal(`
+      <h3>${t ? 'Команда: ' + e(t.name) : (initComp === 'europe' ? '🌍 Новый зарубежный клуб (Европа)' : 'Новая команда')}</h3>
       <div class="logo-preview-box">
         <img id="prevImg" class="t-logo lg" src="${curLogo}" alt="Превью логотипа"/>
         <div>
@@ -12844,8 +13052,17 @@ async function pgAdmin(app) {
           <div class="small muted">Векторный SVG или URL изображения</div>
         </div>
       </div>
-      <label>Название</label><input id="tn" value="${e(t?.name || '')}">
-      <label>Лига</label><select id="tc">${(S.st?.comps || []).filter(c => c.type === 'league').map(c => `<option value="${c.id}" ${t?.comp === c.id ? 'selected' : ''}>${e(c.name)}</option>`).join('')}</select>
+      <label>Название</label><input id="tn" value="${e(t?.name || '')}" placeholder="Например: Реал Мадрид или Спартак">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label>Лига / Категория</label>
+          <select id="tc">${compChoices.map(c => `<option value="${c.id}" ${initComp === c.id ? 'selected' : ''}>${c.id === 'europe' ? '🌍 ' : ''}${e(c.name)}</option>`).join('')}</select>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <label>Страна</label>
+          <input id="tcountry" value="${e(t?.country || (initComp === 'europe' ? 'Европа' : 'Россия'))}" placeholder="Испания, Франция, Россия…">
+        </div>
+      </div>
       <label>Основной клуб (для дубля / молодёжки)</label>
       <select id="tparent">
         <option value="">— Автоматически по названию —</option>
@@ -12868,11 +13085,18 @@ async function pgAdmin(app) {
         inpLogo.oninput = () => {
           prevImg.src = inpLogo.value.trim() || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"/>';
         };
+        m.querySelector('#tc')?.addEventListener('change', ev => {
+          const cInp = m.querySelector('#tcountry');
+          if (!cInp) return;
+          if (ev.target.value === 'europe' && (!cInp.value.trim() || cInp.value.trim() === 'Россия')) cInp.value = 'Европа';
+          else if (ev.target.value !== 'europe' && cInp.value.trim() === 'Европа') cInp.value = 'Россия';
+        });
 
         const send = x => act(() => api('/admin/team', {
           id: t?.id,
           name: m.querySelector('#tn').value,
           comp: m.querySelector('#tc').value,
+          country: m.querySelector('#tcountry')?.value || '',
           parentTeamId: m.querySelector('#tparent').value || '',
           logo: m.querySelector('#tlogo').value,
           city: m.querySelector('#tci').value,
@@ -12880,18 +13104,19 @@ async function pgAdmin(app) {
           lat: m.querySelector('#tla').value,
           lon: m.querySelector('#tlo').value,
           ...x
-        }), 'Готово').then(r => { if (r) { m.remove(); re(); } });
+        }), r => x.delete ? 'Команда удалена' : 'Команда сохранена').then(r => { if (r) { m.remove(); re(); } });
 
         m.querySelector('#tsv').onclick = () => send({});
         if (t) {
           m.querySelector('#trg').onclick = () => send({ regen: 1 });
           m.querySelector('#tcc').onclick = () => send({ clearCode: 1 });
-          m.querySelector('#tdl').onclick = () => confirm('Удалить команду?') && send({ delete: 1 });
+          m.querySelector('#tdl').onclick = () => confirm('Удалить команду? Игроки будут откреплены от клуба.') && send({ delete: 1 });
         }
       });
     };
 
     $('#addt').onclick = () => teamForm(null);
+    $('#addt_eu').onclick = () => teamForm(null, 'europe');
     $('#impsq').onclick = () => {
       modal(`<h3>Импорт составов из файла</h3>
         <p class="muted small">Файл .txt: «Клуб:» → строки «номер, ФИО, позиция, возраст (дата рождения), гражданство», затем «Тренерский штаб:». Сначала нажмите «Проверить» — база при этом не меняется. Игроки с тем же ФИО и датой рождения обновляются, а не дублируются, поэтому файл можно загружать повторно, когда составы меняются.</p>
@@ -12936,6 +13161,10 @@ async function pgAdmin(app) {
         go.onclick = () => run(true);
       });
     };
+    ab.querySelectorAll('[data-populate-club]').forEach(b => b.onclick = () => {
+      const targetTeam = T.find(t => t.id === b.dataset.populateClub);
+      if (targetTeam) openPopulateClubModal(targetTeam, () => re());
+    });
     ab.querySelectorAll('[data-club-squad]').forEach(b => b.onclick = () => {
       CLUB_TID = b.dataset.clubSquad;
       CT = 'squad';
@@ -12961,6 +13190,30 @@ async function pgAdmin(app) {
     });
   }
   else if (AT === 'players') {
+    const euTeams = T.filter(t => t.comp === 'europe');
+    const ruTeams = T.filter(t => t.comp !== 'europe');
+    const buildFilterClubOpts = (sel) => `
+      <option value="" ${sel === '' ? 'selected' : ''}>Все команды и игроки</option>
+      <option value="__europe__" ${sel === '__europe__' ? 'selected' : ''}>🌍 Вся Европа (клубы + пул)</option>
+      <option value="__abroad_pool__" ${sel === '__abroad_pool__' ? 'selected' : ''}>🌍 Просто «Европа» (вне клубов)</option>
+      <option value="__free__" ${sel === '__free__' ? 'selected' : ''}>🆓 Свободные агенты (без клуба)</option>
+      ${euTeams.length ? `<optgroup label="🌍 Созданные клубы (Европа)">${euTeams.map(t => `<option value="${t.id}" ${sel === t.id ? 'selected' : ''}>🌍 ${e(t.name)}</option>`).join('')}</optgroup>` : ''}
+      <optgroup label="🏆 Клубы России и Медиалиги">${ruTeams.map(t => `<option value="${t.id}" ${sel === t.id ? 'selected' : ''}>${e(t.name)}</option>`).join('')}</optgroup>
+    `;
+    const buildPlayerTargetOpts = (selTeamId, isAbroadPool) => {
+      const selVal = selTeamId ? selTeamId : (isAbroadPool ? '__europe__' : '');
+      return `
+        <option value="" ${selVal === '' ? 'selected' : ''}>🆓 Без клуба (свободный агент)</option>
+        <option value="__europe__" ${selVal === '__europe__' ? 'selected' : ''}>🌍 Европа (зарубежный пул / свой зарубежный клуб)</option>
+        ${euTeams.length ? `<optgroup label="🌍 Созданные клубы (Европа)">${euTeams.map(t => `<option value="${t.id}" ${selVal === t.id ? 'selected' : ''}>🌍 ${e(t.name)}${t.country ? ` (${e(t.country)})` : ''}</option>`).join('')}</optgroup>` : ''}
+        <optgroup label="🏆 Клубы России и Медиалиги">${ruTeams.map(t => `<option value="${t.id}" ${selVal === t.id ? 'selected' : ''}>${e(t.name)}</option>`).join('')}</optgroup>
+      `;
+    };
+    const buildAbroadDatalist = () => {
+      const names = new Set(['Европа', ...(ov.abroadPoolNames || []), ...(ov.foreignClubPresets || []).map(c => c.name)]);
+      return `<datalist id="f_abroad_dl">${[...names].map(n => `<option value="${e(n)}">`).join('')}</datalist>`;
+    };
+
     ab.innerHTML = `<div class="panel">
       <div class="row sp" style="flex-wrap:wrap;gap:10px;margin-bottom:14px;background:#fef2f2;border:1.5px solid #fca5a5;padding:12px 14px;border-radius:8px">
         <div>
@@ -12984,9 +13237,54 @@ async function pgAdmin(app) {
           <button class="btn red sm" id="btn_por_stop" style="display:none">Остановить</button>
         </div>
       </div>
-      <div class="row"><input id="pq" placeholder="Поиск по фамилии" style="flex:1;min-width:200px"><select id="pt" style="max-width:230px"><option value="">Все команды</option>${T.map(t => `<option value="${t.id}">${e(t.name)}</option>`).join('')}</select><button class="btn" id="pnew">+ Игрок</button></div><div id="plist" class="wrap" style="margin-top:10px"></div></div>`;
+      <div class="row"><input id="pq" value="${e(AP_QUERY)}" placeholder="Поиск по фамилии или зарубежному клубу" style="flex:1;min-width:200px"><select id="pt" style="max-width:270px">${buildFilterClubOpts(AP_TEAM_FILT)}</select><button class="btn" id="pnew">+ Игрок</button></div><div id="plist" class="wrap" style="margin-top:10px"></div></div>`;
+
+    const openMovePlayerModal = (pl, onMoved) => {
+      const isPool = !pl.teamId && !!pl.abroadClub;
+      const m = modal(`
+        <h3>↔ Переместить игрока: ${e(pl.name)}</h3>
+        <div class="small muted" style="margin-bottom:10px">Текущий статус: <b>${pl.isAbroad ? '🌍 ' : ''}${e(pl.team)}</b></div>
+        <label>Куда переместить</label>
+        <select id="mv_teamId">${buildPlayerTargetOpts(pl.teamId, isPool)}</select>
+        <div id="mv_abroad_wrap" style="display:${isPool ? '' : 'none'};margin-top:8px;padding:10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px">
+          <label style="color:#3730a3;font-weight:600">Зарубежный клуб или пул (можно оставить «Европа»)</label>
+          <input id="mv_abroadClub" list="f_abroad_dl" value="${e(pl.abroadClub || 'Европа')}" placeholder="Европа, Монако, Реал Мадрид…">
+          <label style="color:#3730a3;font-weight:600">Страна (необязательно)</label>
+          <input id="mv_abroadCountry" value="${e(pl.abroadCountry || '')}" placeholder="Например: Европа, Франция, Испания">
+          ${buildAbroadDatalist()}
+        </div>
+        <label class="small" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;margin-top:10px"><input type="checkbox" id="mv_reg" checked style="width:auto"> Автоматически включить в заявку нового клуба</label>
+        <div class="row sp" style="margin-top:14px">
+          <button type="button" class="btn" id="mv_save">↔ Переместить</button>
+          <button type="button" class="btn alt" id="mv_cancel">Отмена</button>
+        </div>`, m => {
+        const sel = m.querySelector('#mv_teamId');
+        const aw = m.querySelector('#mv_abroad_wrap');
+        sel.onchange = () => {
+          aw.style.display = sel.value === '__europe__' ? '' : 'none';
+          if (sel.value === '__europe__' && !m.querySelector('#mv_abroadClub').value.trim()) {
+            m.querySelector('#mv_abroadClub').value = 'Европа';
+          }
+        };
+        m.querySelector('#mv_cancel').onclick = () => m.remove();
+        m.querySelector('#mv_save').onclick = async () => {
+          const target = sel.value || '__free__';
+          const r = await act(() => api('/admin/player/move', {
+            playerId: pl.id,
+            targetTeamId: target,
+            abroadClub: target === '__europe__' ? (m.querySelector('#mv_abroadClub').value.trim() || 'Европа') : '',
+            abroadCountry: target === '__europe__' ? m.querySelector('#mv_abroadCountry').value.trim() : '',
+            register: !!m.querySelector('#mv_reg')?.checked
+          }), res => res.message || 'Игрок перемещён');
+          if (r) { m.remove(); if (typeof onMoved === 'function') onMoved(); }
+        };
+      });
+    };
+
     const load = async () => {
-      const l = await api(`/admin/players?q=${encodeURIComponent($('#pq').value)}&teamId=${$('#pt').value}`);
+      AP_QUERY = $('#pq')?.value || '';
+      AP_TEAM_FILT = $('#pt')?.value || '';
+      const l = await api(`/admin/players?q=${encodeURIComponent(AP_QUERY)}&teamId=${encodeURIComponent(AP_TEAM_FILT)}`);
       $('#plist').innerHTML = `<table><thead><tr><th>№</th><th class="l">Имя</th><th>Поз.</th><th>Возр.</th><th class="l">Гражданство / Легионер</th><th class="l">Клуб</th><th class="l">Статус / Дисциплина</th><th class="l">Карточка</th><th></th></tr></thead><tbody>${l.map(p => {
         const leg = resolveLegionBadge(p);
         const legBadge = `<span class="tag" style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;${leg.tagClass === 'legion' ? 'background:#fee2e2;color:#991b1b;border-color:#fca5a5' : (leg.tagClass === 'eaeu' ? 'background:#f0fdf4;color:#166534;border-color:#bbf7d0' : 'background:#eff6ff;color:#1e40af;border-color:#bfdbfe')}" title="${e(leg.details || '')}">${e(leg.label)}</span>`;
@@ -12999,7 +13297,7 @@ async function pgAdmin(app) {
           <td>${clientPosBadgeHtml(p)}</td>
           <td>${age(p.born)}${isBday(p.born) ? ' 🎂' : ''}</td>
           <td class="l" style="white-space:nowrap">${legBadge}</td>
-          <td class="l"><div class="t-cell">${p.teamLogo ? `<img class="t-logo" src="${p.teamLogo}" alt=""/>` : ''}<span>${e(p.team)}</span></div></td>
+          <td class="l"><div class="t-cell">${p.teamLogo ? `<img class="t-logo" src="${p.teamLogo}" alt=""/>` : ''}<span>${p.isAbroad && !p.teamLogo ? '🌍 ' : ''}${e(p.team)}</span>${p.teamComp === 'europe' ? ' <span class="tag sm" style="background:#eef2ff;color:#3730a3;border-color:#c7d2fe">Европа</span>' : ''}</div></td>
           <td class="l">${(() => {
             const parts = [];
             if (p.banText) parts.push(`<span class="tag" style="background:#fee2e2;color:#991b1b;border-color:#fca5a5">${e(p.banText)}</span>`);
@@ -13008,10 +13306,14 @@ async function pgAdmin(app) {
             return parts.length ? parts.join(' ') : '<span class="muted small">готов</span>';
           })()}</td>
           <td class="l">${p.verified ? '<span class="tag">нейросеть</span>' : '<span class="tag bg">вручную / пусто</span>'}</td>
-          <td style="white-space:nowrap">${(p.familyTargets || []).map(ft => `<button type="button" class="btn alt sm" data-admin-fam-move="${p.id}" data-from="${e(p.teamId)}" data-to="${e(ft.id)}" style="border-color:#86efac;color:#14532d;background:#f0fdf4" title="Быстрый перевод в «${e(ft.name)}»">${ft.isMain ? '↑ В основу' : `→ ${e(ft.name)}`}</button>`).join(' ')} <button class="btn alt sm" data-pl-loan="${p.id}" title="Настроить или изменить срок аренды">${hasLn ? '✏️ Срок' : '🔄 Аренда'}</button> <button class="btn sm" data-pp="${p.id}" title="Сделать портрет (ИИ)">🧑‍🎨 Портрет</button> <button class="btn alt sm" data-pe="${p.id}">Править</button></td>
+          <td style="white-space:nowrap">${(p.familyTargets || []).map(ft => `<button type="button" class="btn alt sm" data-admin-fam-move="${p.id}" data-from="${e(p.teamId)}" data-to="${e(ft.id)}" style="border-color:#86efac;color:#14532d;background:#f0fdf4" title="Быстрый перевод в «${e(ft.name)}»">${ft.isMain ? '↑ В основу' : `→ ${e(ft.name)}`}</button>`).join(' ')} <button class="btn alt sm" data-pm="${p.id}" style="border-color:#a5b4fc;color:#3730a3;background:#eef2ff" title="Переместить в другой клуб, Европу или свободные агенты">↔ Переместить</button> <button class="btn alt sm" data-pl-loan="${p.id}" title="Настроить или изменить срок аренды">${hasLn ? '✏️ Срок' : '🔄 Аренда'}</button> <button class="btn sm" data-pp="${p.id}" title="Сделать портрет (ИИ)">🧑‍🎨 Портрет</button> <button class="btn alt sm" data-pe="${p.id}">Править</button></td>
         </tr>`;
       }).join('') || '<tr><td colspan="9" class="empty">В базе данных нет игроков. Вы можете добавить игрока кнопкой «+ Игрок»</td></tr>'}</tbody></table>`;
       $('#plist').querySelectorAll('[data-pe]').forEach(b => b.onclick = () => pform(l.find(p => p.id === b.dataset.pe)));
+      $('#plist').querySelectorAll('[data-pm]').forEach(b => b.onclick = () => {
+        const pl = l.find(p => p.id === b.dataset.pm);
+        if (pl) openMovePlayerModal(pl, load);
+      });
       $('#plist').querySelectorAll('[data-admin-fam-move]').forEach(b => b.onclick = async () => {
         b.disabled = true;
         const r = await act(() => api('/club/family/transfer', { teamId: b.dataset.from, playerId: b.dataset.adminFamMove, toTeamId: b.dataset.to, register: true }), res => res.message || 'Игрок переведён');
@@ -13055,7 +13357,7 @@ async function pgAdmin(app) {
     };
     $('#btn_por_club').onclick = () => {
       const tid = $('#pt').value;
-      if (!tid) return alert('Сначала выберите клуб в выпадающем списке «Все команды»');
+      if (!tid || tid.startsWith('__')) return alert('Выберите конкретный клуб из списка команд');
       porStart(tid);
     };
     $('#btn_por_stop').onclick = async () => { await api('/admin/players/portraits-stop', {}); toast('Останавливаю после текущей пачки…'); };
@@ -13069,7 +13371,7 @@ async function pgAdmin(app) {
 
     const pform = p => {
       const f = (k, l, ta) => `<label>${l}</label>${ta ? `<textarea id="f_${k}" style="min-height:60px">${e(p?.[k] || '')}</textarea>` : `<input id="f_${k}" value="${e(p?.[k] || '')}">`}`;
-      const banCompOpts = (S.st?.comps || []).filter(c => c.id !== 'friendly_match');
+      const banCompOpts = (S.st?.comps || []).filter(c => c.id !== 'friendly_match' && c.type !== 'abroad');
       const pTeamObj = T.find(t => t.id === p?.teamId);
       const banByCompMap = (p?.banByComp && typeof p.banByComp === 'object') ? p.banByComp : {};
       const activeBanComps = Object.keys(banByCompMap).filter(k => (banByCompMap[k]?.left || 0) > 0);
@@ -13080,6 +13382,8 @@ async function pgAdmin(app) {
         ? { left: p?.banLeft || 0, reason: p?.banReason || '', label: p?.banLabel || '' }
         : (banByCompMap[initBanComp] || { left: 0, reason: '', label: '' });
       const hasAnyBan = !!(p?.banLeft > 0 || p?.banUntil || activeBanComps.length > 0);
+      const defTid = p ? (p.teamId || '') : (AP_TEAM_FILT === '__free__' ? '' : (AP_TEAM_FILT === '__abroad_pool__' || AP_TEAM_FILT === '__europe__' ? '__europe__' : AP_TEAM_FILT));
+      const defIsAbroadPool = p ? (!p.teamId && !!p.abroadClub) : (defTid === '__europe__');
       modal(`<h3>${p ? e(p.name) : 'Новый игрок'}</h3>
         <div class="row">
           <div style="flex:2">${f('name', 'Имя')}</div>
@@ -13099,9 +13403,23 @@ async function pgAdmin(app) {
         <div class="row">
           <div style="flex:1">${f('nation', 'Гражданство/Страна (Россия, Белоруссия, Армения, Казахстан, Бразилия и т.д.)')}</div>
           <div style="flex:1">
-            <label>Клуб</label>
-            <select id="f_teamId"><option value="">без клуба</option>${T.map(t => `<option value="${t.id}" ${p?.teamId === t.id ? 'selected' : ''}>${e(t.name)}</option>`).join('')}</select>
+            <label>Клуб / Европа</label>
+            <select id="f_teamId">${buildPlayerTargetOpts(defTid === '__europe__' ? '' : defTid, defIsAbroadPool)}</select>
           </div>
+        </div>
+        <div id="f_abroad_wrap" style="display:${defIsAbroadPool ? '' : 'none'};background:#eef2ff;border:1px solid #c7d2fe;margin:8px 0;padding:10px;border-radius:8px">
+          <div class="row" style="gap:10px;flex-wrap:wrap">
+            <div style="flex:1.4;min-width:180px">
+              <label style="color:#3730a3;font-weight:600">Зарубежный клуб или пул</label>
+              <input id="f_abroadClub" list="f_abroad_dl" value="${e(p?.abroadClub || 'Европа')}" placeholder="Европа или название зарубежного клуба">
+              ${buildAbroadDatalist()}
+            </div>
+            <div style="flex:1;min-width:140px">
+              <label style="color:#3730a3;font-weight:600">Страна (необязательно)</label>
+              <input id="f_abroadCountry" value="${e(p?.abroadCountry || '')}" placeholder="Европа, Испания, Англия…">
+            </div>
+          </div>
+          <div class="small" style="color:#4338ca;margin-top:4px">Оставьте «Европа» — игрок будет числиться в европейском пуле, откуда его можно перенести в любой созданный клуб.</div>
         </div>
         <div class="panel" style="background:var(--soft);margin:8px 0;padding:10px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
@@ -13253,6 +13571,16 @@ async function pgAdmin(app) {
           ${p ? '<button class="btn alt" id="pgen">🧑‍🎨 Сделать портрет (ИИ)</button><button class="btn red" id="pdl">Удалить</button>' : ''}
         </div>`, m => {
         const g = k => m.querySelector('#f_' + k).value;
+        const fTeamSel = m.querySelector('#f_teamId');
+        const fAbroadWrap = m.querySelector('#f_abroad_wrap');
+        if (fTeamSel && fAbroadWrap) {
+          fTeamSel.addEventListener('change', () => {
+            fAbroadWrap.style.display = fTeamSel.value === '__europe__' ? '' : 'none';
+            if (fTeamSel.value === '__europe__' && !m.querySelector('#f_abroadClub').value.trim()) {
+              m.querySelector('#f_abroadClub').value = 'Европа';
+            }
+          });
+        }
         let selectedAltPos = new Set(clientPlayerPositions(p).slice(1));
         const renderAltPosChips = () => {
           const wrap = m.querySelector('#f_alt_pos_wrap');
@@ -13389,6 +13717,7 @@ async function pgAdmin(app) {
           const loanFromVal = m.querySelector('#f_loanFrom')?.value?.trim() || '';
           const loanUntilVal = m.querySelector('#f_loanUntil')?.value?.trim() || '';
           const loanTermVal = m.querySelector('#f_loanTerm')?.value?.trim() || '';
+          const selectedTeamVal = g('teamId');
 
           const r = await act(() => api('/admin/player', {
             banComp: banCompVal,
@@ -13415,7 +13744,9 @@ async function pgAdmin(app) {
             nation: g('nation') || 'Россия',
             playedForOtherNationalTeam: m.querySelector('#f_playedForOtherNationalTeam')?.checked,
             otherNationalTeam: g('otherNationalTeam'),
-            teamId: g('teamId'),
+            teamId: selectedTeamVal,
+            abroadClub: selectedTeamVal === '__europe__' ? (m.querySelector('#f_abroadClub')?.value?.trim() || 'Европа') : '',
+            abroadCountry: selectedTeamVal === '__europe__' ? (m.querySelector('#f_abroadCountry')?.value?.trim() || '') : '',
             style: g('style'),
             achievements: g('ach'),
             stats2y: g('stats2y'),
