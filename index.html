@@ -9112,7 +9112,7 @@ async function pgClub(app) {
           ${e(r.venueText)}${r.venue === 'neutral' ? ` (${e(r.stadium)}${r.city ? ', ' + e(r.city) : ''})` : ''} · ${r.nationalType ? '📺 <b>100 просмотров рекламы</b>' : '💶 <b>' + e(r.formattedBudget) + '</b>'}
         </div>
         <div class="small">Условия: ${e(r.conditions)}</div>
-        <div class="muted small" style="margin-top:4px">${r.intraSquad ? 'Внутрикомандный спарринг · подтверждение не требуется' : `Админ: ${appr(r.adminApproval)}${r.needOpponentApproval ? ` · «${e(r.opponentName)}»: ${appr(r.opponentApproval)}` : ` · ${e(r.opponentCompName)}: решает только админ`}`}</div>
+        <div class="muted small" style="margin-top:4px">${r.intraSquad ? `Внутрикомандный спарринг · Админ: ${appr(r.adminApproval)} · клуб-соперник не требуется` : `Админ: ${appr(r.adminApproval)}${r.needOpponentApproval ? ` · «${e(r.opponentName)}»: ${appr(r.opponentApproval)}` : ` · ${e(r.opponentCompName)}: решает только админ`}`}</div>
         ${r.rejectReason && r.status !== 'approved' ? `<div class="small" style="color:#991b1b;margin-top:4px">${e(r.rejectReason)}</div>` : ''}
         <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
           ${r.intraSquad && r.status === 'approved' && r.fixtureId ? `<button type="button" class="btn sm" data-intra-go-matches="1">⚙️ Настроить составы (11 на 11)</button><a class="btn sm alt" href="#/match/${e(r.fixtureId)}">📅 Матч</a>` : ''}
@@ -9200,7 +9200,7 @@ async function pgClub(app) {
           <h3 style="margin:0">⚽ Внутрикомандный спарринг (11 на 11 внутри клуба)</h3>
           <span class="tag" style="background:${intraReady ? '#dcfce7;color:#166534;border-color:#86efac' : '#fee2e2;color:#991b1b;border-color:#fca5a5'}">Игроков в клубе: ${ip.total} (готов к игре: ${ip.available}, ВР: ${ip.gkAvailable}/${ip.gkTotal})</span>
         </div>
-        <p class="muted small" style="margin:4px 0 10px">Организуйте тренировочную двусторонку внутри вашего клуба — например, <b>Основа против Запаса</b> (можно привлечь всех игроков заявки, незаявленных и дубль). Бесплатно, без рекламы и без согласования с другими клубами — проводится во время официальных пауз на сборные.</p>
+        <p class="muted small" style="margin:4px 0 10px">Организуйте тренировочную двусторонку внутри вашего клуба — например, <b>Основа против Запаса</b> (можно привлечь всех игроков заявки, незаявленных и дубль). Бесплатно (без траты бюджета клуба) и без согласования с другими клубами — проводится во время официальных пауз на сборные после просмотра большой рекламы и одобрения администратором.</p>
         ${!intraReady ? `<div class="small" style="color:#991b1b;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;margin-bottom:10px">⚠ Для спарринга 11 на 11 нужно минимум 22 игрока в структуре клуба (сейчас ${ip.total}).</div>` : ''}
         ${fr.breaks?.length ? `
         <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -9214,7 +9214,7 @@ async function pgClub(app) {
         </div>
         <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
           <label class="small" style="flex:1;min-width:190px">Место проведения<br><select id="intra_venue" style="width:100%"><option value="home">На своей базе / стадионе</option><option value="neutral">Нейтральное поле (сборы)</option></select></label>
-          <label class="small" style="flex:2;min-width:200px">Официальная пауза на сборные<br><select id="intra_break" style="width:100%">${fr.breaks.map(b => `<option value="${e(b.start)}|${e(b.end)}">${e(b.name)} (${e(b.start)} — ${e(b.end)})</option>`).join('')}</select></label>
+          <label class="small" style="flex:2;min-width:200px">Официальная пауза на сборные<br><select id="intra_break" style="width:100%">${fr.breaks.map(b => `<option value="${e(b.start)}|${e(b.end)}" data-bid="${e(b.id)}">${e(b.name)} (${e(b.start)} — ${e(b.end)})</option>`).join('')}</select></label>
           <label class="small" style="flex:1;min-width:140px">Игровая дата (внутри паузы)<br><input type="date" id="intra_date" style="width:100%"></label>
           <label class="small" style="width:110px">Игровое время<br><input type="time" id="intra_time" value="11:30" style="width:100%"></label>
         </div>
@@ -9234,7 +9234,8 @@ async function pgClub(app) {
           </div>
         </div>
         <label class="small" style="display:block;margin-top:8px">Заметка к спаррингу (необязательно)<br><textarea id="intra_cond" rows="2" maxlength="500" style="width:100%;max-width:560px" placeholder="Например: Двусторонка 11 на 11: проверка резерва и новых сочетаний"></textarea></label>
-        <button type="button" class="btn" id="intra_send" ${intraReady ? '' : 'disabled'} style="margin-top:8px">⚽ Назначить спарринг и перейти к выбору составов</button>` : '<div class="muted small">Ближайших пауз на сборные в календаре нет — назначить спарринг можно только во время паузы на сборные.</div>'}
+        <div id="intra_ad_quota" class="small" style="margin-top:6px;color:var(--deep);font-weight:600"></div>
+        <button type="button" class="btn" id="intra_send" ${(intraReady && !frInCd) ? '' : 'disabled'} style="margin-top:8px;font-variant-numeric:tabular-nums">${frInCd ? `<span data-fr-cd="${frCdTarget}">Перерыв ${fmtFrCd(frCdTarget - nowFr)}</span>` : '⚽ Подать заявку на спарринг (большая реклама + клик)'}</button>` : '<div class="muted small">Ближайших пауз на сборные в календаре нет — назначить спарринг можно только во время паузы на сборные.</div>'}
       </div>`;
     cb.innerHTML = `
       ${intraPanel}
@@ -9445,6 +9446,13 @@ async function pgClub(app) {
         dtEl.min = a;
         dtEl.max = z;
         if (!dtEl.value || dtEl.value < a || dtEl.value > z) dtEl.value = a;
+        const bid = brkEl.selectedOptions[0]?.dataset?.bid || '';
+        const used = (fr.breakUsage && bid) ? (fr.breakUsage[bid] || 0) : 0;
+        const lim = fr.breakLimit || 9;
+        if (iq('#intra_ad_quota')) {
+          iq('#intra_ad_quota').textContent = `Заявок в выбранный перерыв на сборные: ${used} / ${lim} (требуется просмотр и клик по большой рекламе · перерыв 2 мин)`;
+        }
+        if (iq('#intra_send')) iq('#intra_send').disabled = !intraReady || used >= lim || frCdTarget > Date.now();
       };
       if (iq('#intra_break')) {
         iq('#intra_break').onchange = syncIntraBreak;
@@ -9467,6 +9475,14 @@ async function pgClub(app) {
       });
       if (iq('#intra_send')) iq('#intra_send').onclick = async () => {
         if (iq('#intra_send').disabled) return;
+        const ext = await ensureExt();
+        const adRes = await ext.runAdsgramBlock(
+          'friendly_request',
+          'Заявка на внутрикомандный спарринг',
+          'Посмотрите большую рекламу и обязательно нажмите на рекламное предложение.',
+          { teamId: CLUB_TID }
+        );
+        if (!adRes) return;
         const r = await act(() => api('/club/friendly/intra/request', withT({
           homeLabel: iq('#intra_home_lbl')?.value,
           awayLabel: iq('#intra_away_lbl')?.value,
@@ -9477,12 +9493,10 @@ async function pgClub(app) {
           gameTime: iq('#intra_time')?.value,
           realDate: iq('#intra_real_date')?.value,
           realTime: iq('#intra_real_time')?.value,
-          conditions: iq('#intra_cond')?.value
-        })), d => d?.message || 'Спарринг назначен');
-        if (r) {
-          CT = 'matches';
-          pgClub(app);
-        }
+          conditions: iq('#intra_cond')?.value,
+          adProof: adRes.adProof
+        })), d => d?.message || 'Заявка на спарринг отправлена администратору');
+        if (r) pgClub(app);
       };
     }
     if ($('#fr_send')) {

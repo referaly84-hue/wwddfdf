@@ -26104,6 +26104,12 @@ app.post("/api/club/friendly/intra/request", needClub, (req, res) => {
   if (poolIds.size < 22) {
     return fail(res, `Для спарринга 11 на 11 нужно минимум 22 игрока в структуре клуба (основная заявка, незаявленные и дубль/молодёжка). Сейчас: ${poolIds.size}`);
   }
+  if ((db.friendlyRequests ||= []).some((r2) => r2.status === "pending" && r2.intraSquad && r2.clubId === A.id && (r2.gameDate || r2.date) === gameDate)) {
+    return fail(res, "Заявка на внутрикомандный спарринг на эту игровую дату уже подана и ждёт решения администратора");
+  }
+  const actorInfo = resolveActor(req);
+  const frAdCheck = checkAndConsumeFriendlyRequestAd(db, A.id, matchedBreak.id, actorInfo.actorKey, b.adProof);
+  if (!frAdCheck.ok) return fail(res, frAdCheck.error);
   const conditions = cleanTxt(b.conditions, 500) || `Внутрикомандный спарринг: ${homeLabel} против ${awayLabel}`;
   const r = {
     id: "fr_" + uid(),
@@ -26125,23 +26131,27 @@ app.post("/api/club/friendly/intra/request", needClub, (req, res) => {
     budget: 0,
     needOpponentApproval: false,
     opponentApproval: "not_required",
-    adminApproval: "approved",
+    adminApproval: "pending",
     status: "pending",
     fixtureId: null as string | null,
     createdAt: (/* @__PURE__ */ new Date()).toISOString()
   };
-  (db.friendlyRequests ||= []).unshift(r);
-  const out = tryFinalizeFriendly(r);
-  if (!out.executed) {
-    db.friendlyRequests = db.friendlyRequests.filter((x) => x.id !== r.id);
-    return fail(res, out.error || "Не удалось назначить спарринг");
-  }
+  db.friendlyRequests.unshift(r);
   save();
+  try {
+    tg(`⚽ <b>Заявка на внутрикомандный спарринг</b>
+«${esc(A.name)} (${esc(homeLabel)})» — «${esc(A.name)} (${esc(awayLabel)})»
+🎮 Игровое: <b>${esc(gameDate)} ${esc(gameTime)}</b>
+⏰ Настоящее: <b>${esc(realDate)} ${esc(realTime)} МСК</b>
+🏟 ${esc(friendlyPlace(r).stadium)}
+<i>${esc(conditions)}</i>
+Требуется решение администратора.`);
+  } catch {
+  }
   res.json({
     ok: 1,
     request: pubFriendly(r),
-    fixtureId: r.fixtureId,
-    message: "Внутрикомандный спарринг назначен! Настройте оба состава во вкладке «Матчи и тактика»."
+    message: "Заявка на внутрикомандный спарринг отправлена администратору. Матч появится в календаре после его одобрения."
   });
 });
 app.post("/api/club/friendly/intra/cancel", needClub, (req, res) => {
@@ -26396,7 +26406,7 @@ app.post("/api/admin/friendly/resolve", admin, (req, res) => {
       ok: 1,
       executed: out.executed,
       error: out.error,
-      message: out.executed ? "\u041C\u0430\u0442\u0447 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C, \u0431\u044E\u0434\u0436\u0435\u0442 \u0441\u043F\u0438\u0441\u0430\u043D." : out.error ? `\u0417\u0430\u044F\u0432\u043A\u0430 \u0437\u0430\u043A\u0440\u044B\u0442\u0430: ${out.error}` : `\u041E\u0434\u043E\u0431\u0440\u0435\u043D\u043E. \u0416\u0434\u0451\u043C \u043E\u0442\u0432\u0435\u0442\u0430 \u043A\u043B\u0443\u0431\u0430 \xAB${tn(r.opponentId)}\xBB.`
+      message: out.executed ? (r.intraSquad ? "Внутрикомандный спарринг одобрен и добавлен в календарь." : "\u041C\u0430\u0442\u0447 \u0434\u043E\u0431\u0430\u0432\u043B\u0435\u043D \u0432 \u043A\u0430\u043B\u0435\u043D\u0434\u0430\u0440\u044C, \u0431\u044E\u0434\u0436\u0435\u0442 \u0441\u043F\u0438\u0441\u0430\u043D.") : out.error ? `\u0417\u0430\u044F\u0432\u043A\u0430 \u0437\u0430\u043A\u0440\u044B\u0442\u0430: ${out.error}` : `\u041E\u0434\u043E\u0431\u0440\u0435\u043D\u043E. \u0416\u0434\u0451\u043C \u043E\u0442\u0432\u0435\u0442\u0430 \u043A\u043B\u0443\u0431\u0430 \xAB${tn(r.opponentId)}\xBB.`
     });
   }
   if (action === "reject") {
